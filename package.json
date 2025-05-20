@@ -1,10 +1,36 @@
 {
+  "name": "nodejs",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "dev": "nodemon server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@eslint/js": "^9.27.0",
+    "eslint": "^9.27.0",
+    "eslint-config-eslint": "^11.0.0",
+    "globals": "^16.1.0",
+    "nodemon": "^3.1.10",
+    "vite": "^5.4.11",
+    "vite-plugin-node": "^4.0.0"
+  },
   "dependencies": {
+    "bcrypt": "^6.0.0",
+    "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
-    "expess": "^0.0.1-security",
-    "express": "^5.1.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "joi": "^17.13.3",
+    "json-server": "^1.0.0-beta.3",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.14.1",
-    "nodemon": "^3.1.9"
+    "mongoose": "^8.14.2",
+    "mongoose-paginate-v2": "^1.9.0",
+    "morgan": "^1.10.0"
   }
 }

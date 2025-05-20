@@ -1,23 +1,11 @@
 import express from 'express';
-import dotenv from "dotenv";
-import cors from 'cors';
-import mongoose from 'mongoose';
-import morgan from "morgan";
-import categoryRouter from './routers/category';
+import routes from './routers/index.js';
+import errorHandler from './middlewares/error.middleware.js';
 
 const app = express();
-dotenv.config({path: './src/.env'});
 
-// middleware
 app.use(express.json());
-app.use(cors());
-app.use(morgan('tiny'));
+app.use('/api/v1', routes);
+app.use(errorHandler); 
 
-// kết nối db
-mongoose.connect(`mongodb://localhost:27017/${process.env.DB_NAME}`);
-
-// routers
-
-app.use("/api", categoryRouter);
-
-export const viteNodeApp = app;
+export default app;
