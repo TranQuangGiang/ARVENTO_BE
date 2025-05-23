@@ -1,14 +1,22 @@
 import mongoose from "mongoose";
 
 const categorySchema = new mongoose.Schema(
-    {
-        nameCategory: {
-            type: String,
-            require: true
-        }
+  {
+    name: {
+      type: String,
+      required: true,
+      maxLength: 100
     },
-    {
-        versionKey: false, timestamps: true,
+    slug: {
+      type: String,
+      required: true,
+      maxLength: 100
     }
-)
-export default mongoose.model("categorys", categorySchema);
+  },
+  {
+    timestamps: { createdAt: 'created_at', updatedAt: false },
+    versionKey: false
+  }
+);
+
+export default mongoose.model("Category", categorySchema);
