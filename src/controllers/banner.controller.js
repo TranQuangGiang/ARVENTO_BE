@@ -1,10 +1,9 @@
 import * as bannerService from '../services/banner.service.js';
-// import { uploadSingle } from '../middlewares/upload.middleware.js';
 
-// Get all banners
+// Get all active banners (chỉ banner đang bật, theo position)
 export const getBanners = async (req, res) => {
   try {
-    const banners = await bannerService.getAllBanners();
+    const banners = await bannerService.getActiveBanners();
     return res.status(200).json({
       success: true,
       data: banners,
