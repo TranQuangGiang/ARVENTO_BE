@@ -27,36 +27,52 @@ router.post(
 );
 
 // Cập nhật banner
+// router.put(
+//   '/admin/:id', 
+//   authenticateToken, 
+//   authorizeRoles(['admin']), 
+//   uploadBannerImage, 
+//   bannerController.updateBanner
+// );
 router.put(
-  '/admin/:id', 
-  authenticateToken, 
-  authorizeRoles(['admin']), 
+  '/admin/:id',  
   uploadBannerImage, 
   bannerController.updateBanner
 );
 
 // Cập nhật trạng thái banner (bật/tắt)
+// router.patch(
+//   '/admin/:id/visibility', 
+//   authenticateToken, 
+//   authorizeRoles(['admin']), 
+//   bannerController.updateBannerStatus
+// );
 router.patch(
   '/admin/:id/visibility', 
-  authenticateToken, 
-  authorizeRoles(['admin']), 
   bannerController.updateBannerStatus
 );
 
 // Cập nhật vị trí banner
+// router.patch(
+//   '/admin/:id/position', 
+//   authenticateToken, 
+//   authorizeRoles(['admin']), 
+//   bannerController.updateBannerPosition
+// );
 router.patch(
-  '/admin/:id/position', 
-  authenticateToken, 
-  authorizeRoles(['admin']), 
+  '/admin/:id/position',  
   bannerController.updateBannerPosition
 );
 
 // Xóa banner
+// router.delete(
+//   '/admin/:id', 
+//   authenticateToken, 
+//   authorizeRoles(['admin']), 
+//   bannerController.deleteBanner
+// );
 router.delete(
-  '/admin/:id', 
-  authenticateToken, 
-  authorizeRoles(['admin']), 
+  '/admin/:id',  
   bannerController.deleteBanner
 );
-
 export default router;
