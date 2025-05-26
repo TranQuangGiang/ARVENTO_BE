@@ -1,0 +1,1 @@
+export {default as productValidate } from './product.validation.js'
