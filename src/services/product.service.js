@@ -1,4 +1,4 @@
-import { productModel } from "../models";
+import { productModel } from "../models/index.js";
 
 const getAllProducts = async (page = 1, limit = 10, filters = {}, sort = { createdAt: -1 }) => {
   const options = {
