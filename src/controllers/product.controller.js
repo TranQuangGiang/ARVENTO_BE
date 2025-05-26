@@ -1,6 +1,6 @@
-import {productService} from '../services';
-import {baseResponse, parseQueryParams} from '../utils';
-import {productValidate} from '../validations';
+import {productService} from '../services/index.js';
+import {baseResponse, parseQueryParams} from '../utils/index.js';
+import {productValidate} from '../validations/index.js';
 
 const getAllProducts = async (req, res) => {
   try {
