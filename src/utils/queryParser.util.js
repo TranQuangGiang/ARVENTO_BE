@@ -1,4 +1,4 @@
-export const parseQueryParams = (query, allowedFields = {}) => {
+const parseQueryParams = (query, allowedFields = {}) => {
   const filters = {};
 
   for (const field in allowedFields) {
@@ -38,3 +38,5 @@ export const parseQueryParams = (query, allowedFields = {}) => {
 
   return { filters, sort, page, limit };
 };
+
+export default parseQueryParams;
