@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import mongoosePaginate from 'mongoose-paginate-v2';
 
 const variantSchema = new mongoose.Schema({
   size: {
@@ -54,6 +55,6 @@ const productSchema = new mongoose.Schema({
   timestamps: { createdAt: 'created_at', updatedAt: false }
 });
 
-const productModel = mongoose.model('Product', productSchema);
+productSchema.plugin(mongoosePaginate);
+export default  mongoose.model('Product', productSchema);
 
-export default productModel;
