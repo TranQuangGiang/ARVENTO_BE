@@ -13,9 +13,15 @@ const getAllProducts = async (req, res) => {
     };
     const { filters, sort, page, limit } = parseQueryParams(req.query, allowedFields);
 
-    const products = await productService.getAllProducts(page, limit, filters, sort);
+    const result = await productService.getAllProducts(page, limit, filters, sort);
 
-    return baseResponse.successResponse(res, products, "Lấy danh sách sản phẩm thành công");
+     const responseData = {
+      ...result,
+      data: result.docs,
+    };
+    delete responseData.docs;
+
+    return baseResponse.successResponse(res, responseData, "Get product list successfully");
   } catch (err) {
     const status = err.statusCode || 500;
     return baseResponse.errorResponse(res, null, err.message, status);
@@ -25,7 +31,7 @@ const getAllProducts = async (req, res) => {
 const getProductById = async (req, res) => {
   try {
     const product = await productService.getProductById(req.params.id);
-    return baseResponse.successResponse(res, product, "Lấy sản phẩm thành công");
+    return baseResponse.successResponse(res, product, "Get product successfully");
   } catch (err) {
     const status = err.statusCode || 500;
     if (status === 404) return baseResponse.notFoundResponse(res, null, err.message);
@@ -40,7 +46,7 @@ const createProduct = async (req, res) => {
   }
   try {
     const newProduct = await productService.createProduct(req.body);
-    return baseResponse.createdResponse(res, newProduct, "Tạo sản phẩm thành công");
+    return baseResponse.createdResponse(res, newProduct, "Create product successfully");
   } catch (err) {
     const status = err.statusCode || 500;
     return baseResponse.errorResponse(res, null, err.message, status);
@@ -54,7 +60,7 @@ const updateProduct = async (req, res) => {
   }
   try {
     const updatedProduct = await productService.updateProduct(req.params.id, req.body);
-    return baseResponse.successResponse(res, updatedProduct, "Cập nhật sản phẩm thành công");
+    return baseResponse.successResponse(res, updatedProduct, "Update product successfully");
   } catch (err) {
     const status = err.statusCode || 500;
     if (status === 404) return baseResponse.notFoundResponse(res, null, err.message);
@@ -65,7 +71,7 @@ const updateProduct = async (req, res) => {
 const deleteProduct = async (req, res) => {
   try {
     await productService.deleteProduct(req.params.id);
-    return baseResponse.successResponse(res, null, "Xóa sản phẩm thành công");
+    return baseResponse.successResponse(res, null, "Delete product successfully");
   } catch (err) {
     const status = err.statusCode || 500;
     if (status === 404) return baseResponse.notFoundResponse(res, null, err.message);
