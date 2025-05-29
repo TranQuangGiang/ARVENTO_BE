@@ -21,7 +21,6 @@ const saveToken = async (userId, token, type) => {
   );
 };
 
-
 const removeRefreshToken = async (token) => {
   await tokenModel.findOneAndDelete({ token, type: 'refresh' });
 };

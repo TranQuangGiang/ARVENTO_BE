@@ -5,6 +5,8 @@ import { authValidate } from "../validations/index.js";
 
 const register = async (req, res) => {
   try {
+    console.log(req.body);
+    
     const { error } = authValidate.register.validate(req.body);
     if (error) {
       return baseResponse.badRequestResponse(res, null, error.details[0].message);

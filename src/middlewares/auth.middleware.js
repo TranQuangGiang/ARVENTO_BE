@@ -19,7 +19,7 @@ const authenticateToken = async (req, res, next) => {
 
   try {
     
-    const decoded = jwtUtils.verifyToken(token, accessTokenSecret);
+    const decoded = jwtUtils.verifyToken(token, accessTokenSecret); // { id: user._id, email: user.email, role: user.role }
     const userId = decoded.id;
 
     logger.info(`[AUTH] Token decoded for userId: ${userId}`);
