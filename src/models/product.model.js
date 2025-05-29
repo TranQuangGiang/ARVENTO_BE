@@ -51,7 +51,7 @@ const productSchema = new mongoose.Schema({
   tags: {
     type: [String]
   }
-}, {
+}, {   
   timestamps: { createdAt: 'created_at', updatedAt: false }
 });
 

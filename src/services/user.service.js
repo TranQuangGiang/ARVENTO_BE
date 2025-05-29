@@ -111,3 +111,7 @@ export default {
   deleteUser,
   changeUserRole,
 };
+
+export default {
+  registerUser
+}
