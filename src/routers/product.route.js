@@ -1,6 +1,7 @@
 import express from "express";
+import multer from 'multer';
 import { productController } from "../controllers/index.js";
-
+const upload = multer({ dest: 'uploads/' });
 const router = express.Router();
 /**
  * @swagger
@@ -224,5 +225,7 @@ router.put("/:id", productController.updateProduct);
  */
 
 router.delete("/:id", productController.deleteProduct);
+router.post('/import', upload.single('file'), productController.importProducts);
+
 
 export default router;

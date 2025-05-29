@@ -79,10 +79,22 @@ const deleteProduct = async (req, res) => {
   }
 };
 
+const importProducts = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'Please upload file Excel' });
+
+    const result = await productService.importProductsFromExcel(req.file.path);
+
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({ message: error.message || 'Error import product' });
+  }
+};
 export default {
   getAllProducts,
   getProductById,
   createProduct,
   updateProduct,
   deleteProduct,
+  importProducts
 };
