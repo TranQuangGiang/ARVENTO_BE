@@ -13,7 +13,15 @@ const bannerSchema = new mongoose.Schema({
   link: {
     type: String,
     maxLength: 255
-  }
+  },
+  is_active: {   // Trường bật/tắt hiển thị
+    type: Boolean,
+    default: true
+  },
+  position: {  // Trường thứ tự hiển thị
+  type: Number,
+  default: 0
+}
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: false },
   versionKey: false
