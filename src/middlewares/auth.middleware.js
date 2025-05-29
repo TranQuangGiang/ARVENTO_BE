@@ -2,7 +2,6 @@ import { tokenModel } from '../models/index.js';
 import { userModel } from '../models/index.js';
 import { jwtUtils, envUtils, baseResponse } from '../utils/index.js';
 import { logger } from "../config/index.js";
-// import tokenConstant from '../constants/token.enum.js';
 
 const accessTokenSecret = envUtils.getEnv('ACCESS_TOKEN_SECRET');
 

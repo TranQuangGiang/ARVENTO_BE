@@ -14,29 +14,36 @@ const parseQueryParams = (query, allowedFields = {}) => {
   // === FIELD FILTERS ===
   for (const field in allowedFields) {
     if (query[field]) {
-      switch (allowedFields[field]) {
-        case 'string':
-          filters[field] = { $regex: query[field], $options: 'i' };
-          break;
-        case 'number':
-          filters[field] = Number(query[field]);
-          break;
-        case 'array':
-          filters[field] = { $in: query[field].split(',') };
-          break;
-        case 'date':
-          filters[field] = new Date(query[field]);
-          break;
-        case 'exact':
-          filters[field] = query[field];
-          break;
-        case 'in':
-          filters[field] = { $in: query[field].split(',') };
-          break;
-        // You can add more custom types here
+      if (field === 'color' || field === 'size') {
+        // filter trong mảng variants
+        if (!filters['variants']) filters['variants'] = {};
+        if (!filters['variants'].$elemMatch) filters['variants'].$elemMatch = {};
+        filters['variants'].$elemMatch[field] = query[field];
+      } else {
+        switch (allowedFields[field]) {
+          case 'string':
+            filters[field] = { $regex: query[field], $options: 'i' };
+            break;
+          case 'number':
+            filters[field] = Number(query[field]);
+            break;
+          case 'array':
+            filters[field] = { $in: query[field].split(',') };
+            break;
+          case 'date':
+            filters[field] = new Date(query[field]);
+            break;
+          case 'exact':
+            filters[field] = query[field];
+            break;
+          case 'in':
+            filters[field] = { $in: query[field].split(',') };
+            break;
+        }
       }
     }
   }
+
 
   // === PRICE RANGE ===
   if (query.priceMin || query.priceMax) {

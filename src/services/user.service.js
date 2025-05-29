@@ -110,8 +110,4 @@ export default {
   updateUser,
   deleteUser,
   changeUserRole,
-};
-
-export default {
-  registerUser
 }
