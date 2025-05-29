@@ -1,6 +1,8 @@
 import express from 'express';
 import * as bannerController from '../controllers/banner.controller.js';
 import { uploadBannerImage } from '../middlewares/upload.middleware.js';
+import { authMiddleware } from '../middlewares/index.js'
+import Roles from '../constants/role.enum.js';
 // import { authenticateToken, authorizeRoles } from '../middlewares/auth.middleware.js';
 const router = express.Router();
 
@@ -10,7 +12,7 @@ router.get('/:id', bannerController.getBannerById); // Lấy chi tiết một ba
 // Routes admin (yêu cầu xác thực và phân quyền)
 // Lấy tất cả banner (cả active và inactive) cho admin
 // router.get('/admin/all', authenticateToken, authorizeRoles(['admin']), bannerController.getAllBanners);
-router.get('/admin/all', bannerController.getAllBanners);
+router.get('/admin/all', authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),bannerController.getAllBanners);
 
 // Thêm banner mới
 // router.post(
@@ -21,7 +23,7 @@ router.get('/admin/all', bannerController.getAllBanners);
 //   bannerController.createBanner
 // );
 router.post(
-  '/admin', 
+  '/admin',authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), 
   uploadBannerImage, 
   bannerController.createBanner
 );
@@ -35,7 +37,7 @@ router.post(
 //   bannerController.updateBanner
 // );
 router.put(
-  '/admin/:id',  
+  '/admin/:id', authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), 
   uploadBannerImage, 
   bannerController.updateBanner
 );
@@ -48,7 +50,7 @@ router.put(
 //   bannerController.updateBannerStatus
 // );
 router.patch(
-  '/admin/:id/visibility', 
+  '/admin/:id/visibility', authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),
   bannerController.updateBannerStatus
 );
 
@@ -60,7 +62,7 @@ router.patch(
 //   bannerController.updateBannerPosition
 // );
 router.patch(
-  '/admin/:id/position',  
+  '/admin/:id/position', authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), 
   bannerController.updateBannerPosition
 );
 
@@ -72,7 +74,7 @@ router.patch(
 //   bannerController.deleteBanner
 // );
 router.delete(
-  '/admin/:id',  
+  '/admin/:id',  authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),
   bannerController.deleteBanner
 );
 export default router;
