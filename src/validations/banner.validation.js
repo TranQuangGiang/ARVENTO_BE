@@ -20,6 +20,7 @@ export const validateBannerData = (data) => {
   
   if (data.link !== undefined && data.link !== null && data.link !== '') {
     if (typeof data.link === 'string') {
+      // eslint-disable-next-line no-useless-escape
       const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
       if (!urlPattern.test(data.link.trim())) {
         errors.push('Đường dẫn phải là URL hợp lệ');

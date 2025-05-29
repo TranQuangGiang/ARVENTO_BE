@@ -1,4 +1,5 @@
 export {default as baseResponse } from './response.util.js'
 export {default as jwtUtils } from './jwt.util.js'
 export {default as hashUtils } from './hash.util.js'
+export {default as envUtils } from './env.util.js'
 export {default as parseQueryParams } from './queryParser.util.js'

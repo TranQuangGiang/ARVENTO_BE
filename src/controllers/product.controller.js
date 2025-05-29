@@ -34,7 +34,7 @@ const getProductById = async (req, res) => {
 };
 
 const createProduct = async (req, res) => {
-  const { error } = productValidate.createSchema.validate(req.body, { abortEarly: false });
+  const { error } = productValidate.create.validate(req.body, { abortEarly: false });
   if (error) {
     return baseResponse.badRequestResponse(res, null, error.details.map(e => e.message).join(', '));
   }
@@ -48,7 +48,7 @@ const createProduct = async (req, res) => {
 };
 
 const updateProduct = async (req, res) => {
-  const { error } = productValidate.updateSchema.validate(req.body, { abortEarly: false });
+  const { error } = productValidate.update.validate(req.body, { abortEarly: false });
   if (error) {
     return baseResponse.badRequestResponse(res, null, error.details.map(e => e.message).join(', '));
   }

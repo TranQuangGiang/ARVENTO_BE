@@ -1,7 +1,7 @@
 import express from 'express';
 import * as bannerController from '../controllers/banner.controller.js';
 import { uploadBannerImage } from '../middlewares/upload.middleware.js';
-import { authenticateToken, authorizeRoles } from '../middlewares/auth.middleware.js';
+// import { authenticateToken, authorizeRoles } from '../middlewares/auth.middleware.js';
 const router = express.Router();
 
 // Routes công khai
