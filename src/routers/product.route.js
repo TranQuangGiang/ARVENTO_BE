@@ -3,10 +3,20 @@ import multer from 'multer';
 import { productController } from "../controllers/index.js";
 const upload = multer({ dest: 'uploads/' });
 const router = express.Router();
+
+/**
+ * @swagger
+ * tags:
+ *   name: Product
+ *   description: Các API liên quan sản phẩm và quản lý sản phẩm
+ */
+
 /**
  * @swagger
  * /products:
  *   get:
+ *     tags:
+ *       - Product
  *     summary: Lấy danh sách sản phẩm với lọc, phân trang và sắp xếp
  *     parameters:
  *       - in: query
@@ -133,6 +143,8 @@ router.get("/", productController.getAllProducts);
  * @swagger
  * /products/{id}:
  *   get:
+ *     tags:
+ *       - Product
  *     summary: Lấy chi tiết sản phẩm theo ID
  *     parameters:
  *       - in: path
@@ -156,6 +168,8 @@ router.get("/:id", productController.getProductById);
  * @swagger
  * /products:
  *   post:
+ *     tags:
+ *       - Product
  *     summary: Tạo sản phẩm mới
  *     requestBody:
  *       required: true
@@ -178,6 +192,8 @@ router.post("/", productController.createProduct);
  * @swagger
  * /products/{id}:
  *   put:
+ *     tags:
+ *       - Product
  *     summary: Cập nhật thông tin sản phẩm
  *     parameters:
  *       - in: path
@@ -209,6 +225,8 @@ router.put("/:id", productController.updateProduct);
  * @swagger
  * /products/{id}:
  *   delete:
+ *     tags:
+ *       - Product
  *     summary: Xóa sản phẩm theo ID
  *     parameters:
  *       - in: path

@@ -1,7 +1,7 @@
 // src/config/swagger.js
 import swaggerJSDoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
-import { swaggerSchemas } from '../utils/generateSwaggerSchemas.util.js';
+import { swaggerSchemas } from "../swagger/schema/generateSwaggerSchemas.js";
 
 
 const options = {

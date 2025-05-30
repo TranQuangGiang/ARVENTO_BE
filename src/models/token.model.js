@@ -5,7 +5,7 @@ const tokenSchema = new mongoose.Schema({
   token: { type: String, required: true },
   type: { 
     type: String, 
-    enum: ['refresh', 'verify_email', 'reset_password'], 
+    enum: ['refresh_token','access_token', 'verify_email', 'reset_password'], 
     required: true 
   },
   expiresAt: { type: Date, required: true }, 

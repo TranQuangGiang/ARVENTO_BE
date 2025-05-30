@@ -3,12 +3,14 @@ import {jwtUtils,envUtils} from '../utils/index.js';
 
 const accessTokenSecret = envUtils.getEnv('ACCESS_TOKEN_SECRET');
 const refreshTokenSecret = envUtils.getEnv('REFRESH_TOKEN_SECRET');
+const expiresInAccessToken = envUtils.getEnv('ACCESS_TOKEN_EXPIRES_IN');
+const expiresInRefreshToken = envUtils.getEnv('REFRESH_TOKEN_EXPIRES_IN');
 
 const generateTokens = (user) => {
   const payload = { id: user._id, email: user.email, role: user.role };
 
-  const accessToken = jwtUtils.generateToken(payload, accessTokenSecret, { expiresIn: '15m' });
-  const refreshToken = jwtUtils.generateToken(payload, refreshTokenSecret, { expiresIn: '7d' });
+  const accessToken = jwtUtils.generateToken(payload, accessTokenSecret, { expiresIn: expiresInAccessToken });
+  const refreshToken = jwtUtils.generateToken(payload, refreshTokenSecret, { expiresIn: expiresInRefreshToken});
 
   return { accessToken, refreshToken };
 };
