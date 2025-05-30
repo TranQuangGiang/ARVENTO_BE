@@ -1,20 +1,43 @@
+import ms from "ms";
+
 import authService from "../services/auth.service.js";
 import { baseResponse } from "../utils/index.js";
 import { logger } from "../config/index.js";
 import { authValidate } from "../validations/index.js";
+import { envUtils } from "../utils/index.js";
+import {tokenConstant} from "../constants/index.js";
+
+const expiresInAccessToken = envUtils.getEnv("ACCESS_TOKEN_EXPIRES_IN");
+const expiresInRefreshToken = envUtils.getEnv("REFRESH_TOKEN_EXPIRES_IN");
 
 const register = async (req, res) => {
   try {
     console.log(req.body);
-    
+
     const { error } = authValidate.register.validate(req.body);
     if (error) {
       return baseResponse.badRequestResponse(res, null, error.details[0].message);
     }
 
-    const result = await authService.register(req.body);
-    logger.info(`User registered: ${result.id} - ${result.email}`);
-    return baseResponse.createdResponse(res, result, "Registration successful");
+    const { accessToken, refreshToken, user } = await authService.register(req.body);
+
+    res.cookie(tokenConstant.REFRESH, refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "Strict",
+      maxAge: ms(expiresInRefreshToken) / 1000,
+    });
+
+    logger.info(`User registered: ${user.id} - ${user.email}`);
+    return baseResponse.createdResponse(
+      res,
+      {
+        user,
+        access_token: accessToken,
+        expires_in: ms(expiresInAccessToken) / 1000,
+      },
+      "Registration successful"
+    );
   } catch (err) {
     logger.error(`Register failed: ${err.message}`);
     return baseResponse.badRequestResponse(res, null, err.message);
@@ -27,10 +50,25 @@ const login = async (req, res) => {
     if (error) {
       return baseResponse.badRequestResponse(res, null, error.details[0].message);
     }
+    const { accessToken, refreshToken, user } = await authService.login(req.body);
 
-    const result = await authService.login(req.body);
-    logger.info(`User logged in: ${result.user.id} - ${result.user.email}`);
-    return baseResponse.successResponse(res, result, "Login successful");
+    res.cookie(tokenConstant.REFRESH, refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "Strict",
+      maxAge: ms(expiresInRefreshToken) / 1000,
+    });
+
+    logger.info(`User logged in: ${user.id} - ${user.email}`);
+    return baseResponse.successResponse(
+      res,
+      {
+        user,
+        access_token: accessToken,
+        expires_in: ms(expiresInAccessToken) / 1000,
+      },
+      "Login successful"
+    );
   } catch (err) {
     logger.error(`Login failed: ${err.message}`);
     return baseResponse.unauthorizedResponse(res, null, err.message);
@@ -39,8 +77,18 @@ const login = async (req, res) => {
 
 const logout = async (req, res) => {
   try {
-    const { refreshToken } = req.body;
+    const refreshToken = req.cookies.refresh_token;
+    if (!refreshToken) {
+      return baseResponse.badRequestResponse(res, null, "No token found");
+    }
     await authService.logout(refreshToken);
+
+    res.clearCookie(tokenConstant.REFRESH, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "Strict",
+    });
+
     logger.info(`User logged out with refresh token: ${refreshToken}`);
     return baseResponse.successResponse(res, null, "Logout successful");
   } catch (err) {
@@ -51,10 +99,29 @@ const logout = async (req, res) => {
 
 const refreshToken = async (req, res) => {
   try {
-    const { refreshToken } = req.body;
-    const result = await authService.refresh(refreshToken);
+    const refreshToken = req.cookies.refresh_token;
+    if (!refreshToken) {
+      return baseResponse.badRequestResponse(res, null, "No token found");
+    }
+
+    const tokens = await authService.refresh(refreshToken);
+
+    res.cookie(tokenConstant.REFRESH, tokens.refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "Strict",
+      maxAge: ms(expiresInRefreshToken),
+    });
+
     logger.info(`Token refreshed for refresh token: ${refreshToken}`);
-    return baseResponse.successResponse(res, result, "Token refreshed successfully");
+    return baseResponse.successResponse(
+      res,
+      {
+        access_token: tokens.accessToken,
+        expires_in: ms(expiresInAccessToken),
+      },
+      "Token refreshed successfully"
+    );
   } catch (err) {
     logger.error(`Refresh token failed: ${err.message}`);
     return baseResponse.unauthorizedResponse(res, null, err.message);
