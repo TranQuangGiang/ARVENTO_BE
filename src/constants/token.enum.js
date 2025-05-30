@@ -1,6 +1,6 @@
 const tokenConstant = {
-  ACCESS: 'access',
-  REFRESH: 'refresh',
+  ACCESS: 'access_token',
+  REFRESH: 'refresh_token',
 };
 
 export default tokenConstant;
