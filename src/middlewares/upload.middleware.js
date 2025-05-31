@@ -97,8 +97,8 @@ export const uploadBannerImage = (req, res, next) => {
         path.join(__dirname, '..', '..', 'public'),
         req.file.path
       ).replace(/\\/g, '/');
-      
-      req.file.url = `/${relativePath}`;
+      const host = req.protocol + '://' + req.get('host'); // ví dụ http://localhost:3000
+req.file.url = `${host}/${relativePath}`;
     }
     
     next();
@@ -136,7 +136,8 @@ export const uploadPostImages = (req, res, next) => {
             path.join(__dirname, '..', '..', 'public'),
             file.path
           ).replace(/\\/g, '/');
-          file.url = `/${relativePath}`;
+          const host = req.protocol + '://' + req.get('host');
+file.url = `${host}/${relativePath}`;
         });
       }
       
@@ -146,7 +147,8 @@ export const uploadPostImages = (req, res, next) => {
             path.join(__dirname, '..', '..', 'public'),
             file.path
           ).replace(/\\/g, '/');
-          file.url = `/${relativePath}`;
+         const host = req.protocol + '://' + req.get('host');
+file.url = `${host}/${relativePath}`;
         });
       }
     }
