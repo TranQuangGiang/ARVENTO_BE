@@ -68,7 +68,7 @@ router.get('/me', authMiddleware.authenticateToken, userController.getMe);
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/UserInput'
+ *             $ref: '#/components/schemas/User'
  *     responses:
  *       200:
  *         description: Thông tin người dùng đã được cập nhật
@@ -130,7 +130,7 @@ router.get('/:id', authMiddleware.authenticateToken, userController.getUserById)
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/UserInput'
+ *             $ref: '#/components/schemas/User'
  *     responses:
  *       200:
  *         description: Thông tin người dùng đã được cập nhật
@@ -158,7 +158,7 @@ router.put('/:id', authMiddleware.authenticateToken, userController.updateUser);
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/UserInput'
+ *             $ref: '#/components/schemas/User'
  *     responses:
  *       201:
  *         description: Người dùng đã được tạo
