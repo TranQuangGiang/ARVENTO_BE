@@ -41,9 +41,11 @@
     "multer": "^2.0.0",
     "nodemailer": "^7.0.3",
     "npm": "^11.4.1",
+    "path": "^0.12.7",
     "redis": "^5.1.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
+    "url": "^0.11.4",
     "winston": "^3.17.0",
     "xlsx": "^0.18.5"
   }
