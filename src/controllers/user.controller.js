@@ -1,10 +1,30 @@
 import userService from "../services/user.service.js";
 import Roles from "../constants/role.enum.js";
-import { baseResponse } from "../utils/index.js";
+import { baseResponse, parseQueryParams } from "../utils/index.js";
 
 const getAllUsers = async (req, res) => {
+   const { filters, sort, page, limit } = parseQueryParams(
+    req.query,
+    {
+      name: 'string',
+      email: 'string',
+      role: 'string'
+    },
+    [],
+    'created_at'
+  ); 
+
+  if (req.query.search) {
+    const keyword = req.query.search.trim();
+    filters.$or = [
+      { name: { $regex: keyword, $options: 'i' } },
+      { email: { $regex: keyword, $options: 'i' } },
+    ];
+  }
+
+
   try {
-    const users = await userService.getAllUsers();
+    const users = await userService.getAllUsers({ filters, sort, page, limit });
     return baseResponse.successResponse(res, users, "User list");
   } catch (error) {
     return baseResponse.errorResponse(res, null, error.message);
