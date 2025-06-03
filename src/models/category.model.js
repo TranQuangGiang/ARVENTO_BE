@@ -11,11 +11,15 @@ const categorySchema = new mongoose.Schema(
       type: String,
       required: true,
       maxLength: 100
+    },
+    description: { // Thêm trường description
+      type: String,
+      required: false // Trường này là tùy chọn
     }
   },
   {
-    timestamps: { createdAt: 'created_at', updatedAt: false },
-    versionKey: false
+    timestamps: { createdAt: 'created_at', updatedAt: false }, // Giữ nguyên createdAt và tắt updatedAt
+    versionKey: false // Tắt trường __v
   }
 );
 
