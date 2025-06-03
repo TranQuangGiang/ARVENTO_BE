@@ -30,17 +30,10 @@ const postSchema = new mongoose.Schema({
   album: [{
     type: String
   }],
-  // Thêm cả category (slug) và category_name (display name)
-  category: {
-    type: String,
-    trim: true,
-    maxLength: 100,
-    lowercase: true // Để làm slug/key
-  },
-  category_name: {
-    type: String,
-    trim: true,
-    maxLength: 100 // Tên hiển thị cho user
+   category: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'CategoryPost',
+    required: [true, 'Danh mục bài viết là bắt buộc']
   },
   tags: [{
     type: String,
@@ -73,22 +66,11 @@ postSchema.index({ status: 1 });
 postSchema.index({ publishedAt: -1 });
 postSchema.index({ category: 1, status: 1 });
 
-// Pre-save middleware để tự động tạo category slug từ category_name
+// Tự động set publishedAt khi status = published
 postSchema.pre('save', function(next) {
-  // Tự động tạo category slug từ category_name
-  if (this.category_name && !this.category) {
-    this.category = this.category_name
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '') // Loại bỏ ký tự đặc biệt
-      .replace(/\s+/g, '-') // Thay space bằng -
-      .trim();
-  }
-  
-  // Tự động set publishedAt khi status = published
   if (this.status === 'published' && !this.publishedAt) {
     this.publishedAt = new Date();
   }
-  
   next();
 });
 

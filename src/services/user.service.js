@@ -1,9 +1,15 @@
 import { userModel } from "../models/index.js";
 import mongoose from "mongoose";
 
-const getAllUsers = async () => {
+const getAllUsers = async ({ filters, sort, page, limit }) => {
   try {
-    return await userModel.find().select("-password");
+    const result = await userModel.paginate(filters, {
+      page,
+      limit,
+      sort,
+      select: "-password", 
+    });
+    return result;
   } catch (error) {
     throw new Error(`Failed to get users: ${error.message}`);
   }
