@@ -1,215 +1,231 @@
-import { postService } from '../services/index.js';
-import { baseResponse, parseQueryParams } from '../utils/index.js';
-import { postValidate } from '../validations/index.js';
+// src/controllers/post.controller.js
+import postService from '../services/post.service.js';
+import categoryPostService from '../services/categoryPost.service.js'; // To validate category existence
+import responseUtil from '../utils/response.util.js';
+import postValidation from '../validations/post.validation.js';
 
-const getAllPosts = async (req, res, next) => {
+// Client - Get all published posts
+const getAllPostsClient = async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    
-    const filters = {};
-    
-    // Filter theo category_name
-    if (req.query.category_name) {
-      filters.category_name = { $regex: req.query.category_name, $options: 'i' };
-    }
-    
-    // Filter theo category (slug)
-    if (req.query.category) {
-      filters.category = req.query.category;
-    }
-    
-    // Filter theo title
-    if (req.query.title) {
-      filters.title = { $regex: req.query.title, $options: 'i' };
-    }
-    
-    // Filter theo tags
-    if (req.query.tags) {
-      filters.tags = { $in: req.query.tags.split(',') };
-    }
-    
-    let sort = { publishedAt: -1, created_at: -1 };
-    if (req.query.sort) {
-      const sortField = req.query.sort;
-      const sortOrder = req.query.order === 'asc' ? 1 : -1;
-      sort = { [sortField]: sortOrder };
-    }
-    
-    const result = await postService.getAllPosts(page, limit, filters, sort);
-    
-    res.status(200).json({
-      success: true,
-      message: "Lấy danh sách bài viết thành công",
-      data: result
-    });
+    const { page, limit, sort } = req.query;
+    const options = { page: parseInt(page) || 1, limit: parseInt(limit) || 10, sort };
+    const posts = await postService.getAllPosts({ status: 'published' }, options);
+    return responseUtil.successResponse(res, posts, 'Lấy tất cả bài viết thành công');
   } catch (error) {
-    next(error);
+    return responseUtil.errorResponse(res, null, error.message);
   }
 };
 
-// Controller riêng cho admin
-const getAllPostsAdmin = async (req, res, next) => {
+// Client - Get posts by category slug
+const getPostsByCategorySlugClient = async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    
-    const filters = {};
-    
-    // Admin có thể filter theo status
-    if (req.query.status) {
-      filters.status = req.query.status;
+    const { slug } = req.params;
+    const { page, limit, sort } = req.query;
+    const options = { page: parseInt(page) || 1, limit: parseInt(limit) || 10, sort };
+
+    const category = await categoryPostService.getCategoryBySlug(slug);
+    if (!category) {
+      return responseUtil.notFoundResponse(res, null, 'Không tìm thấy danh mục này');
     }
-    
-    if (req.query.category_name) {
-      filters.category_name = { $regex: req.query.category_name, $options: 'i' };
-    }
-    
-    if (req.query.category) {
-      filters.category = req.query.category;
-    }
-    
-    if (req.query.title) {
-      filters.title = { $regex: req.query.title, $options: 'i' };
-    }
-    
-    if (req.query.author) {
-      filters.author = req.query.author;
-    }
-    
-    let sort = { created_at: -1 };
-    if (req.query.sort) {
-      const sortField = req.query.sort;
-      const sortOrder = req.query.order === 'asc' ? 1 : -1;
-      sort = { [sortField]: sortOrder };
-    }
-    
-    const result = await postService.getAllPostsAdmin(page, limit, filters, sort);
-    
-    res.status(200).json({
-      success: true,
-      message: "Lấy danh sách bài viết thành công",
-      data: result
-    });
+
+    const posts = await postService.getPostsByCategory(category._id, options);
+    return responseUtil.successResponse(res, posts, `Lấy bài viết theo danh mục "${category.name}" thành công`);
   } catch (error) {
-    next(error);
+    return responseUtil.errorResponse(res, null, error.message);
   }
 };
-// Lấy posts theo category_name (exact match)
-const getPostsByCategoryName = async (req, res, next) => {
+
+// Client - Get post by slug (detail) and increment view count
+const getPostBySlugClient = async (req, res) => {
   try {
-    const { categoryName } = req.params;
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    
-    const result = await postService.getPostsByCategoryName(categoryName, page, limit);
-    res.status(200).json({
-      success: true,
-      message: `Lấy bài viết danh mục "${categoryName}" thành công`,
-      data: result
-    });
+    const { slug } = req.params;
+    let post = await postService.getPostBySlug(slug);
+
+    if (!post || post.status !== 'published') { // Only show published posts to clients
+      return responseUtil.notFoundResponse(res, null, 'Không tìm thấy bài viết này');
+    }
+
+    // Increment view count
+    post = await postService.incrementViewCount(post._id);
+
+    return responseUtil.successResponse(res, post, 'Lấy chi tiết bài viết thành công');
   } catch (error) {
-    next(error);
+    return responseUtil.errorResponse(res, null, error.message);
   }
 };
-// Lấy danh sách categories
-const getCategories = async (req, res, next) => {
+
+// Admin - Get all posts
+const getAllPostsAdmin = async (req, res) => {
   try {
-    const result = await postService.getCategories();
-    res.status(200).json({
-      success: true,
-      message: "Lấy danh sách categories thành công",
-      data: result
-    });
+    const { page, limit, sort, status, category, search } = req.query;
+    const filter = {};
+    if (status) filter.status = status;
+    if (category) filter.category = category;
+    if (search) {
+      filter.title = { $regex: search, $options: 'i' }; // Case-insensitive search by title
+    }
+
+    const options = { page: parseInt(page) || 1, limit: parseInt(limit) || 10, sort };
+    const posts = await postService.getAllPosts(filter, options);
+    return responseUtil.successResponse(res, posts, 'Lấy tất cả bài viết thành công');
   } catch (error) {
-    next(error);
+    return responseUtil.errorResponse(res, null, error.message);
   }
 };
-// Controller riêng cho admin
-const getPostByIdAdmin = async (req, res, next) => {
+
+// Admin - Get post by ID
+const getPostByIdAdmin = async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await postService.getPostByIdAdmin(id);
-   return baseResponse.successResponse(res, result, "Lấy bài viết thành công");
+    const post = await postService.getPostById(id);
+    if (!post) {
+      return responseUtil.notFoundResponse(res, null, 'Không tìm thấy bài viết');
+    }
+    return responseUtil.successResponse(res, post, 'Lấy bài viết theo ID thành công');
   } catch (error) {
-    next(error);
+    if (error.name === 'CastError') {
+      return responseUtil.badRequestResponse(res, null, 'ID bài viết không hợp lệ');
+    }
+    return responseUtil.errorResponse(res, null, error.message);
   }
 };
-const getPostById = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const result = await postService.getPostById(id);
-    return baseResponse.successResponse(res, result, "Lấy bài viết thành công");
-  } catch (error) {
-    next(error);
-  }
-};
+
+// Admin - Create new post
 const createPost = async (req, res) => {
-  const { error } = postValidate.createSchema.validate(req.body, { abortEarly: false });
-  if (error) {
-    return baseResponse.badRequestResponse(res, null, error.details.map(e => e.message).join(', '));
-  }
   try {
-    const newPost = await postService.createPost(req.body, req.files);
-    return baseResponse.createdResponse(res, newPost, "Tạo bài viết thành công");
-  } catch (err) {
-    const status = err.statusCode || 500;
-    if (status === 409) return baseResponse.conflictResponse(res, null, err.message);
-    return baseResponse.errorResponse(res, null, err.message, status);
+    const { error, value } = postValidation.createPostSchema.validate(req.body);
+    if (error) {
+      return responseUtil.validationErrorResponse(res, error.details);
+    }
+
+    // Check if category exists
+    const categoryExists = await categoryPostService.getCategoryById(value.category);
+    if (!categoryExists) {
+      return responseUtil.badRequestResponse(res, null, 'Danh mục bài viết không tồn tại');
+    }
+
+    // Handle uploaded files (thumbnail and album)
+    if (req.files) {
+      if (req.files.thumbnail && req.files.thumbnail.length > 0) {
+        value.thumbnail = req.files.thumbnail[0].url;
+      }
+      if (req.files.album && req.files.album.length > 0) {
+        value.album = req.files.album.map(file => file.url);
+      }
+    }
+
+    // Auto-generate slug if not provided
+    if (!value.slug && value.title) {
+      value.slug = value.title
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .trim();
+    }
+
+    // Check if slug already exists
+    const existingPostBySlug = await postService.getPostBySlug(value.slug);
+    if (existingPostBySlug) {
+      return responseUtil.conflictResponse(res, null, 'Slug bài viết đã tồn tại');
+    }
+
+
+    const newPost = await postService.createPost(value);
+    return responseUtil.createdResponse(res, newPost, 'Tạo bài viết mới thành công');
+  } catch (error) {
+    return responseUtil.errorResponse(res, null, error.message);
   }
 };
 
+// Admin - Update post
 const updatePost = async (req, res) => {
-  const { error } = postValidate.updateSchema.validate(req.body, { abortEarly: false });
-  if (error) {
-    return baseResponse.badRequestResponse(res, null, error.details.map(e => e.message).join(', '));
-  }
   try {
-    const updatedPost = await postService.updatePost(req.params.id, req.body, req.files);
-    return baseResponse.successResponse(res, updatedPost, "Cập nhật bài viết thành công");
-  } catch (err) {
-    const status = err.statusCode || 500;
-    if (status === 404) return baseResponse.notFoundResponse(res, null, err.message);
-    if (status === 409) return baseResponse.conflictResponse(res, null, err.message);
-    return baseResponse.errorResponse(res, null, err.message, status);
+    const { id } = req.params;
+    const { error, value } = postValidation.updatePostSchema.validate(req.body);
+    if (error) {
+      return responseUtil.validationErrorResponse(res, error.details);
+    }
+
+    if (Object.keys(value).length === 0) {
+      return responseUtil.badRequestResponse(res, null, 'Không có dữ liệu để cập nhật');
+    }
+
+    // Check if category exists if updated
+    if (value.category) {
+      const categoryExists = await categoryPostService.getCategoryById(value.category);
+      if (!categoryExists) {
+        return responseUtil.badRequestResponse(res, null, 'Danh mục bài viết không tồn tại');
+      }
+    }
+
+    // Handle uploaded files for update
+    if (req.files) {
+      if (req.files.thumbnail && req.files.thumbnail.length > 0) {
+        value.thumbnail = req.files.thumbnail[0].url;
+      }
+      if (req.files.album && req.files.album.length > 0) {
+        value.album = req.files.album.map(file => file.url);
+      }
+    }
+
+    // If title is updated and slug is not provided, re-generate slug
+    if (value.title && !value.slug) {
+      value.slug = value.title
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .trim();
+    }
+
+    // Check for slug conflict if slug is being updated or re-generated
+    if (value.slug) {
+      const existingPost = await postService.getPostBySlug(value.slug);
+      if (existingPost && existingPost._id.toString() !== id) {
+        return responseUtil.conflictResponse(res, null, 'Slug bài viết đã tồn tại');
+      }
+    }
+
+    const updatedPost = await postService.updatePost(id, value);
+    if (!updatedPost) {
+      return responseUtil.notFoundResponse(res, null, 'Không tìm thấy bài viết để cập nhật');
+    }
+    return responseUtil.successResponse(res, updatedPost, 'Cập nhật bài viết thành công');
+  } catch (error) {
+    if (error.name === 'CastError') {
+      return responseUtil.badRequestResponse(res, null, 'ID bài viết không hợp lệ');
+    }
+    return responseUtil.errorResponse(res, null, error.message);
   }
 };
 
+// Admin - Delete post
 const deletePost = async (req, res) => {
   try {
-    await postService.deletePost(req.params.id);
-    return baseResponse.successResponse(res, null, "Xóa bài viết thành công");
-  } catch (err) {
-    const status = err.statusCode || 500;
-    if (status === 404) return baseResponse.notFoundResponse(res, null, err.message);
-    return baseResponse.errorResponse(res, null, err.message, status);
-  }
-};
-
-const updatePostCategory = async (req, res) => {
-  const { error } = postValidate.categorySchema.validate(req.body, { abortEarly: false });
-  if (error) {
-    return baseResponse.badRequestResponse(res, null, error.details.map(e => e.message).join(', '));
-  }
-  try {
-    const updatedPost = await postService.updatePostCategory(req.params.id, req.body.category);
-    return baseResponse.successResponse(res, updatedPost, "Cập nhật danh mục bài viết thành công");
-  } catch (err) {
-    const status = err.statusCode || 500;
-    if (status === 404) return baseResponse.notFoundResponse(res, null, err.message);
-    return baseResponse.errorResponse(res, null, err.message, status);
+    const { id } = req.params;
+    const deletedPost = await postService.deletePost(id);
+    if (!deletedPost) {
+      return responseUtil.notFoundResponse(res, null, 'Không tìm thấy bài viết để xóa');
+    }
+    return responseUtil.successResponse(res, null, 'Xóa bài viết thành công');
+  } catch (error) {
+    if (error.name === 'CastError') {
+      return responseUtil.badRequestResponse(res, null, 'ID bài viết không hợp lệ');
+    }
+    return responseUtil.errorResponse(res, null, error.message);
   }
 };
 
 export default {
-  getAllPosts,           // Public API
-  getAllPostsAdmin,      // Admin API
-  getPostById,           // Public API
-  getPostByIdAdmin,      // Admin API
-  getPostsByCategoryName,
-  getCategories,
+  getAllPostsClient,
+  getPostsByCategorySlugClient,
+  getPostBySlugClient,
+  getAllPostsAdmin,
+  getPostByIdAdmin,
   createPost,
   updatePost,
   deletePost,
-  updatePostCategory
 };

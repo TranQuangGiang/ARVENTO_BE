@@ -97,14 +97,15 @@ export const uploadBannerImage = (req, res, next) => {
         path.join(__dirname, '..', '..', 'public'),
         req.file.path
       ).replace(/\\/g, '/');
-      
-      req.file.url = `/${relativePath}`;
+      const host = req.protocol + '://' + req.get('host'); // ví dụ http://localhost:3000
+req.file.url = `${host}/${relativePath}`;
     }
     
     next();
   });
 };
 // Middleware xử lý upload post images
+
 export const uploadPostImages = (req, res, next) => {
   postUpload.fields([
     { name: 'thumbnail', maxCount: 1 },
@@ -127,8 +128,9 @@ export const uploadPostImages = (req, res, next) => {
         message: err.message
       });
     }
-    
-    // Thêm URL cho các file đã upload
+
+    const host = req.protocol + '://' + req.get('host');
+
     if (req.files) {
       if (req.files.thumbnail) {
         req.files.thumbnail.forEach(file => {
@@ -136,21 +138,21 @@ export const uploadPostImages = (req, res, next) => {
             path.join(__dirname, '..', '..', 'public'),
             file.path
           ).replace(/\\/g, '/');
-          file.url = `/${relativePath}`;
+          file.url = `${host}/${relativePath}`;
         });
       }
-      
+
       if (req.files.album) {
         req.files.album.forEach(file => {
           const relativePath = path.relative(
             path.join(__dirname, '..', '..', 'public'),
             file.path
           ).replace(/\\/g, '/');
-          file.url = `/${relativePath}`;
+          file.url = `${host}/${relativePath}`;
         });
       }
     }
-    
+
     next();
   });
 };

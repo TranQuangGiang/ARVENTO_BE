@@ -1,194 +1,184 @@
+// src/routes/post.routes.js
 import express from 'express';
-import { postController } from '../controllers/index.js';
+import postController from '../controllers/post.controller.js';
 import { uploadPostImages } from '../middlewares/upload.middleware.js';
-import { authMiddleware } from '../middlewares/index.js'
 import Roles from '../constants/role.enum.js';
-const router = express.Router();
+import { authMiddleware } from '../middlewares/index.js'
 
+const router = express.Router();
 /**
  * @swagger
  * tags:
  *   name: Posts
- *   description: Quản lý bài viết (công khai và admin)
+ *   description: Quản lý bài viết
  */
-// PUBLIC ROUTES - Chỉ lấy published posts
+
+// --- Client Routes ---
 /**
  * @swagger
- * /posts:
+ * /posts/client:
  *   get:
- *     summary: Lấy tất cả bài viết đã được xuất bản
+ *     summary: Lấy tất cả bài viết (Client)
  *     tags: [Posts]
  *     responses:
  *       200:
- *         description: Danh sách bài viết đã được xuất bản
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Post'
+ *         description: Danh sách bài viết
  */
-router.get('/', postController.getAllPosts);
+router.get('/client', postController.getAllPostsClient);
 /**
  * @swagger
- * /posts/category/{categoryName}:
+ * /posts/client/category/{slug}:
  *   get:
- *     summary: Lấy bài viết theo tên danh mục
+ *     summary: Lấy bài viết theo slug danh mục (Client)
  *     tags: [Posts]
  *     parameters:
  *       - in: path
- *         name: categoryName
+ *         name: slug
+ *         required: true
  *         schema:
  *           type: string
- *         required: true
- *         description: Tên danh mục
+ *         description: Slug của danh mục
  *     responses:
  *       200:
- *         description: Danh sách bài viết trong danh mục
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Post'
+ *         description: Danh sách bài viết theo danh mục
  */
-router.get('/category/:categoryName', postController.getPostsByCategoryName);
+router.get('/client/category/:slug', postController.getPostsByCategorySlugClient);
+
 /**
  * @swagger
- * /posts/categories:
+ * /posts/client/{slug}:
  *   get:
- *     summary: Lấy tất cả danh mục bài viết
- *     tags: [Posts]
- *     responses:
- *       200:
- *         description: Danh sách danh mục bài viết
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: string
- */
-router.get('/categories', postController.getCategories);
-/**
- * @swagger
- * /posts/{id}:
- *   get:
- *     summary: Lấy thông tin bài viết theo ID (đã xuất bản)
+ *     summary: Lấy chi tiết bài viết theo slug (Client)
  *     tags: [Posts]
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: slug
+ *         required: true
  *         schema:
  *           type: string
- *         required: true
- *         description: ID bài viết
+ *         description: Slug của bài viết
  *     responses:
  *       200:
- *         description: Chi tiết bài viết
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Post'
+ *         description: Thông tin chi tiết bài viết
  */
-router.get('/:id', postController.getPostById);
+router.get('/client/:slug', postController.getPostBySlugClient);
 
-
-
-// ADMIN ROUTES - Có thể lấy tất cả posts
+// --- Admin Routes ----
 /**
  * @swagger
- * /posts/admin/all:
+ * /posts/admin:
  *   get:
- *     summary: Admin - Lấy tất cả bài viết
+ *     summary: Lấy tất cả bài viết (Admin)
  *     tags: [Posts]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Danh sách tất cả bài viết
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Post'
+ *         description: Danh sách bài viết cho admin
  */
-router.get('/admin/all', authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),postController.getAllPostsAdmin);
+router.get('/admin',authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), postController.getAllPostsAdmin);
 /**
  * @swagger
  * /posts/admin/{id}:
  *   get:
- *     summary: Admin - Lấy bài viết theo ID
+ *     summary: Lấy chi tiết bài viết theo ID (Admin)
  *     tags: [Posts]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
+ *         required: true
  *         schema:
  *           type: string
- *         required: true
- *         description: ID bài viết
+ *         description: ID của bài viết
  *     responses:
  *       200:
  *         description: Chi tiết bài viết
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Post'
  */
-router.get('/admin/:id', authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),postController.getPostByIdAdmin);
+router.get('/admin/:id',authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), postController.getPostByIdAdmin);
 /**
  * @swagger
  * /posts/admin:
  *   post:
- *     summary: Admin - Tạo bài viết mới
+ *     summary: Tạo mới bài viết (Admin)
  *     tags: [Posts]
  *     security:
  *       - bearerAuth: []
+ *     consumes:
+ *       - multipart/form-data
  *     requestBody:
  *       required: true
  *       content:
  *         multipart/form-data:
  *           schema:
- *             $ref: '#/components/schemas/Post'
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               slug:
+ *                 type: string
+ *               content:
+ *                 type: string
+ *               category_id:
+ *                 type: string
+ *               images:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
  *     responses:
  *       201:
- *         description: Bài viết được tạo thành công
+ *         description: Tạo bài viết thành công
  */
 router.post('/admin', authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),uploadPostImages, postController.createPost);
 /**
  * @swagger
  * /posts/admin/{id}:
  *   put:
- *     summary: Admin - Cập nhật bài viết
+ *     summary: Cập nhật bài viết (Admin)
  *     tags: [Posts]
  *     security:
  *       - bearerAuth: []
+ *     consumes:
+ *       - multipart/form-data
  *     parameters:
  *       - in: path
  *         name: id
+ *         required: true
  *         schema:
  *           type: string
- *         required: true
  *         description: ID bài viết
  *     requestBody:
  *       required: true
  *       content:
  *         multipart/form-data:
  *           schema:
- *             $ref: '#/components/schemas/Post'
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               slug:
+ *                 type: string
+ *               content:
+ *                 type: string
+ *               category_id:
+ *                 type: string
+ *               images:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
  *     responses:
  *       200:
- *         description: Cập nhật thành công
+ *         description: Cập nhật bài viết thành công
  */
-router.put('/admin/:id', authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),uploadPostImages, postController.updatePost);
+router.put('/admin/:id', authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),uploadPostImages, postController.updatePost); 
 /**
  * @swagger
  * /posts/admin/{id}:
  *   delete:
- *     summary: Admin - Xóa bài viết
+ *     summary: Xoá bài viết (Admin)
  *     tags: [Posts]
  *     security:
  *       - bearerAuth: []
@@ -201,38 +191,8 @@ router.put('/admin/:id', authMiddleware.authenticateToken, authMiddleware.author
  *         description: ID bài viết
  *     responses:
  *       200:
- *         description: Xóa thành công
+ *         description: Xoá bài viết thành công
  */
-router.delete('/admin/:id', authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),postController.deletePost);
-/**
- * @swagger
- * /posts/admin/{id}/category:
- *   patch:
- *     summary: Admin - Cập nhật danh mục cho bài viết
- *     tags: [Posts]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: ID bài viết
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               category:
- *                 type: string
- *                 example: "tin-tuc"
- *     responses:
- *       200:
- *         description: Cập nhật danh mục thành công
- */
-router.patch('/admin/:id/category', authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), postController.updatePostCategory);
+router.delete('/admin/:id',authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), postController.deletePost);
 
 export default router;
