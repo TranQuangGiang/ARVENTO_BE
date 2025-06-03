@@ -1,6 +1,6 @@
 import mongooseToSwagger from 'mongoose-to-swagger';
 
-import {productModel, postModel, bannerModel, categoryPostModel } from '../../models/index.js';
+import {userModel, productModel, postModel, bannerModel, categoryPostModel } from '../../models/index.js';
 
 import { authSchemas } from './auth.schemas.js';
 
