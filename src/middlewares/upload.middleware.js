@@ -138,7 +138,9 @@ export const uploadPostImages = (req, res, next) => {
             path.join(__dirname, '..', '..', 'public'),
             file.path
           ).replace(/\\/g, '/');
+
           file.url = `${host}/${relativePath}`;
+
         });
       }
 
@@ -148,7 +150,9 @@ export const uploadPostImages = (req, res, next) => {
             path.join(__dirname, '..', '..', 'public'),
             file.path
           ).replace(/\\/g, '/');
+
           file.url = `${host}/${relativePath}`;
+
         });
       }
     }
