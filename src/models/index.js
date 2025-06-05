@@ -4,5 +4,6 @@ export { default as tokenModel } from './token.model.js';
 export { default as postModel } from './post.model.js';
 export { default as bannerModel } from './banner.model.js';
 export { default as categoryPostModel } from './categoryPost.model.js'; 
+export { default as categoryModel } from './category.model.js';
 // export { default as categoryModel } from './category.model.js';
 // export { default as cartModel } from './cart.model.js';
