@@ -102,6 +102,7 @@ export const uploadBannerImage = (req, res, next) => {
   });
 };
 // Middleware xử lý upload post images
+
 export const uploadPostImages = (req, res, next) => {
   postUpload.fields([
     { name: "thumbnail", maxCount: 1 },
@@ -125,6 +126,18 @@ export const uploadPostImages = (req, res, next) => {
       });
     }
 
+    const host = req.protocol + '://' + req.get('host');
+
+    if (req.files) {
+      if (req.files.thumbnail) {
+        req.files.thumbnail.forEach(file => {
+          const relativePath = path.relative(
+            path.join(__dirname, '..', '..', 'public'),
+            file.path
+          ).replace(/\\/g, '/');
+
+          file.url = `${host}/${relativePath}`;
+
     // Thêm URL cho các file đã upload
     if (req.files) {
       if (req.files.thumbnail) {
@@ -136,6 +149,14 @@ export const uploadPostImages = (req, res, next) => {
       }
 
       if (req.files.album) {
+        req.files.album.forEach(file => {
+          const relativePath = path.relative(
+            path.join(__dirname, '..', '..', 'public'),
+            file.path
+          ).replace(/\\/g, '/');
+
+          file.url = `${host}/${relativePath}`;
+
         req.files.album.forEach((file) => {
           const relativePath = path.relative(path.join(__dirname, "..", "..", "public"), file.path).replace(/\\/g, "/");
           const host = req.protocol + "://" + req.get("host");

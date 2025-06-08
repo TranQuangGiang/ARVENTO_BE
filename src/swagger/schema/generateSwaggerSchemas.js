@@ -1,5 +1,7 @@
 import mongooseToSwagger from 'mongoose-to-swagger';
-import { productModel, userModel, postModel, bannerModel } from '../../models/index.js';
+
+import {userModel, productModel, postModel, bannerModel, categoryPostModel, categoryModel } from '../../models/index.js';
+
 import { authSchemas } from './auth.schemas.js';
 
 const generateSchema = (model) => mongooseToSwagger(model);
@@ -9,5 +11,7 @@ export const swaggerSchemas = {
   User: generateSchema(userModel),
   Banner: generateSchema(bannerModel),
   Post: generateSchema(postModel),
+  categoryPostModel: generateSchema(categoryPostModel),
+  categoryModel: generateSchema(categoryModel),
   ...authSchemas
 };

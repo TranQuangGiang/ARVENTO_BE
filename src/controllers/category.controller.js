@@ -1,92 +1,143 @@
-import categoryModel from "../models/category.model";
-import Joi from 'joi';
+import categoryService from '../services/category.service.js';
+import responseUtil from '../utils/response.util.js';
+import { createCategorySchema, updateCategorySchema } from '../validations/category.validation.js';
 
-const categorySchema = Joi.object({
-    nameCategory: Joi.string().required().min(6),
-})
-export const get = async (req, res) => {
-    try {
-        const categorys = await categoryModel.find();
-        return res.status(200).json({
-            category: categorys,
-        })
-    } catch (error) {
-        return res.status(400).json({
-            message: error.message
-        })
+// Client-side controllers
+const getAllCategoriesForClient = async (req, res) => {
+  try {
+    const categories = await categoryService.getAllCategoriesClient(req.query);
+    return responseUtil.successResponse(res, categories.docs, 'Lấy danh sách danh mục thành công.', 200, {
+      pagination: {
+        totalDocs: categories.totalDocs,
+        limit: categories.limit,
+        totalPages: categories.totalPages,
+        page: categories.page,
+        pagingCounter: categories.pagingCounter,
+        hasPrevPage: categories.hasPrevPage,
+        hasNextPage: categories.hasPrevPage,
+        prevPage: categories.prevPage,
+        nextPage: categories.nextPage,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return responseUtil.errorResponse(res, null, error.message || 'Lỗi lấy danh sách danh mục.');
+  }
+};
+
+const getCategoryDetailForClient = async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const data = await categoryService.getCategoryDetailClient(slug);
+    if (!data) {
+      return responseUtil.notFoundResponse(res, null, 'Không tìm thấy danh mục hoặc sản phẩm liên quan.');
     }
-}
-export const getOne = async (req, res) => {
-    try {
-        const category = await categoryModel.findById(req.params.id);
-        if (!category) {
-            return res.status(400).json({
-                message: "Danh mục không tồn tại"
-            })
-        }
-        return res.status(200).json({
-            message: "Thấy",
-            category,
-        })
-    } catch (error) {
-        
+    return responseUtil.successResponse(res, data, 'Lấy chi tiết danh mục và sản phẩm thành công.');
+  } catch (error) {
+    console.error(error);
+    return responseUtil.errorResponse(res, null, error.message || 'Lỗi lấy chi tiết danh mục.');
+  }
+};
+
+
+// Admin-side controllers
+const getAllCategoriesForAdmin = async (req, res) => {
+  try {
+    const categories = await categoryService.getAllCategoriesAdmin(req.query);
+    return responseUtil.successResponse(res, categories.docs, 'Lấy danh sách tất cả danh mục thành công.', 200, {
+      pagination: {
+        totalDocs: categories.totalDocs,
+        limit: categories.limit,
+        totalPages: categories.totalPages,
+        page: categories.page,
+        pagingCounter: categories.pagingCounter,
+        hasPrevPage: categories.hasPrevPage,
+        hasNextPage: categories.hasPrevPage,
+        prevPage: categories.prevPage,
+        nextPage: categories.nextPage,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return responseUtil.errorResponse(res, null, error.message || 'Lỗi lấy danh sách tất cả danh mục.');
+  }
+};
+
+const getCategoryByIdForAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const category = await categoryService.getCategoryByIdAdmin(id);
+    if (!category) {
+      return responseUtil.notFoundResponse(res, null, 'Không tìm thấy danh mục.');
     }
-}
-export const create = async(req, res) => {
-    try {
-        const { error,value } = categorySchema.validate(req.body, {
-            abortEarly: false,
-        })
-        if (error) {
-            const errors = error.details.map((error => error.message));
-            return res.status(400).json(errors);
-        }
-        const newCategory = await categoryModel.create(value);
-        return res.status(201).json({
-            message: "Thêm mới thành công",
-            category: newCategory,
-        })
-    } catch (error) {
-        return res.status(400).json({
-            message: error.message
-        })
+    return responseUtil.successResponse(res, category, 'Lấy chi tiết danh mục thành công.');
+  } catch (error) {
+    console.error(error);
+    return responseUtil.errorResponse(res, null, error.message || 'Lỗi lấy chi tiết danh mục.');
+  }
+};
+
+const createCategory = async (req, res) => {
+  try {
+    const { error } = createCategorySchema.validate(req.body);
+    if (error) {
+      return responseUtil.validationErrorResponse(res, error.details, error.details[0].message);
     }
-}
-export const update = async (req, res) => {
-    try {
-        const { error, value} = categorySchema.validate(req.body, {
-            abortEarly: false
-        })
-        if (error) {
-            const errors = error.details.map((error => error.message));
-            return res.status(400).json(errors);
-        }
-        const newCategory = await categoryModel.findByIdAndUpdate(req.params.id, value);
-        return res.status(200).json({
-            message: "Cập nhập thành công !",
-            newCategory,
-        })
-    } catch (error) {
-        return res.status(400).json({
-            message: error.message
-        })
+    const newCategory = await categoryService.createCategory(req.body);
+    return responseUtil.createdResponse(res, newCategory, 'Tạo mới danh mục thành công.');
+  } catch (error) {
+    console.error(error);
+    if (error.message.includes('tồn tại')) {
+      return responseUtil.conflictResponse(res, null, error.message);
     }
-}
-export const deleteCategory = async (req, res) => {
-    try {
-        const category = await categoryModel.findByIdAndDelete(req.params.id);
-        if (!category) {
-            return res.status(400).json({
-                message: "Danh mục không tồn tại"
-            })
-        }
-        return res.status(200).json({
-            message: "Xóa thành công",
-            category,
-        })
-    } catch (error) {
-        return res.status(400).json({
-            message: error.message
-        })
+    return responseUtil.errorResponse(res, null, error.message || 'Lỗi tạo mới danh mục.');
+  }
+};
+
+const updateCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { error } = updateCategorySchema.validate(req.body);
+    if (error) {
+      return responseUtil.validationErrorResponse(res, error.details, error.details[0].message);
     }
-}
+    const updatedCategory = await categoryService.updateCategory(id, req.body);
+    return responseUtil.successResponse(res, updatedCategory, 'Cập nhật danh mục thành công.');
+  } catch (error) {
+    console.error(error);
+    if (error.message.includes('tồn tại') || error.message.includes('không tồn tại')) {
+      return responseUtil.badRequestResponse(res, null, error.message);
+    }
+    return responseUtil.errorResponse(res, null, error.message || 'Lỗi cập nhật danh mục.');
+  }
+};
+
+const deleteCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await categoryService.deleteCategory(id);
+    if (!result) {
+      return responseUtil.notFoundResponse(res, null, 'Không tìm thấy danh mục để xóa.');
+    }
+    return responseUtil.successResponse(res, null, 'Xóa danh mục thành công.');
+  } catch (error) {
+    console.error(error);
+    if (error.message.includes('Không thể xóa danh mục này')) {
+      return responseUtil.badRequestResponse(res, null, error.message);
+    }
+    return responseUtil.errorResponse(res, null, error.message || 'Lỗi xóa danh mục.');
+  }
+};
+
+export default {
+  // Client
+  getAllCategoriesForClient,
+  getCategoryDetailForClient,
+
+  // Admin
+  getAllCategoriesForAdmin,
+  getCategoryByIdForAdmin,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+};
