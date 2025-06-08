@@ -1,7 +1,8 @@
 import express from "express";
-import multer from 'multer';
+import { upload } from '../config/multer.config.js';
+// import { processProductImages } from '../middlewares/uploadv2.middleware.js';
 import { productController } from "../controllers/index.js";
-const upload = multer({ dest: 'uploads/' });
+import { processProductImages } from "../middlewares/upload.middleware.js";
 const router = express.Router();
 
 /**
@@ -187,7 +188,15 @@ router.get("/:id", productController.getProductById);
  *       400:
  *         description: Dữ liệu đầu vào không hợp lệ
  */
-router.post("/", productController.createProduct);
+router.post("/", 
+  upload.fields([
+    { name: 'images', maxCount: 5 },
+    { name: 'variantImages', maxCount: 10 }
+  ]),
+  processProductImages,
+  productController.createProduct
+);
+
 /**
  * @swagger
  * /products/{id}:
@@ -220,7 +229,14 @@ router.post("/", productController.createProduct);
  *       404:
  *         description: Không tìm thấy sản phẩm
  */
-router.put("/:id", productController.updateProduct);
+router.put("/:id", 
+  upload.fields([
+    { name: 'images', maxCount: 5 },
+    { name: 'variantImages', maxCount: 10 }
+  ]),
+  processProductImages,
+  productController.updateProduct
+);
 /**
  * @swagger
  * /products/{id}:
