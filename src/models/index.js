@@ -5,5 +5,7 @@ export { default as postModel } from './post.model.js';
 export { default as bannerModel } from './banner.model.js';
 export { default as categoryPostModel } from './categoryPost.model.js'; 
 export { default as categoryModel } from './category.model.js';
+export { default as couponModel } from './coupon.model.js';
+export { default as couponUsageModel } from './couponUsage.model.js';
 // export { default as categoryModel } from './category.model.js';
 // export { default as cartModel } from './cart.model.js';
