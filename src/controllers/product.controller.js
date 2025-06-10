@@ -44,8 +44,15 @@ const getProductById = async (req, res) => {
 const createProduct = async (req, res) => {
   logger.info(`[POST] /products - Create product request`);
 
-  let data = req.body; 
-
+  let data = { ...req.body };
+// Parse variants nếu là JSON chuỗi (ví dụ khi upload qua form)
+  if (typeof data.variants === 'string') {
+    try {
+      data.variants = JSON.parse(data.variants);
+    } catch (e) {
+      return baseResponse.badRequestResponse(res, null, "Trường 'variants' không hợp lệ, phải là JSON hợp lệ");
+    }
+  }
   if (!req.body.slug && data.name) {
     data.slug = generateSlug(data.name);
   }
@@ -70,13 +77,24 @@ const createProduct = async (req, res) => {
 const updateProduct = async (req, res) => {
   logger.info(`[PUT] /products/${req.params.id} - Update product request`);
 
-  const { error } = productValidate.update.validate(req.body, { abortEarly: false });
+  let data = { ...req.body };
+
+  // Parse variants nếu là JSON chuỗi (ví dụ khi upload qua form)
+  if (typeof data.variants === 'string') {
+    try {
+      data.variants = JSON.parse(data.variants);
+    } catch (e) {
+      return baseResponse.badRequestResponse(res, null, "Trường 'variants' không hợp lệ, phải là JSON hợp lệ");
+    }
+  }
+
+  const { error } = productValidate.update.validate(data, { abortEarly: false });
   if (error) {
     return baseResponse.badRequestResponse(res, null, error.details.map(e => e.message).join(', '));
   }
 
   try {
-    const updatedProduct = await productService.updateProduct(req.params.id, req.body);
+    const updatedProduct = await productService.updateProduct(req.params.id, data);
 
     return baseResponse.successResponse(res, updatedProduct, "Update product successfully");
   } catch (err) {
