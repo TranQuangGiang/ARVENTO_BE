@@ -10,8 +10,8 @@ const router = express.Router();
 /**
  * @swagger
  * tags:
- *   name: Product
- *   description: Các API liên quan sản phẩm và quản lý sản phẩm
+ *   - name: Product
+ *     description: Các API liên quan sản phẩm và quản lý sản phẩm
  */
 
 /**
@@ -82,7 +82,6 @@ const router = express.Router();
  *                   items:
  *                     $ref: '#/components/schemas/Product'
  */
-
 router.get("/", productController.getAllProducts);
 /**
  * @swagger
@@ -112,23 +111,14 @@ router.get("/:id", productController.getProductById);
  *   post:
  *     tags: [Product]
  *     summary: Thêm sản phẩm mới
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
  *         multipart/form-data:
  *           schema:
- *             type: object
- *             properties:
- *               name: { type: string }
- *               description: { type: string }
- *               category_id: { type: string }
- *               price: { type: number }
- *               tags: { type: string }
- *               images: 
- *                 type: array
- *                 items:
- *                   type: string
- *                   format: binary
+ *             $ref: '#/components/schemas/ProductInput'
  *     responses:
  *       201:
  *         description: Tạo thành công
@@ -139,7 +129,6 @@ router.get("/:id", productController.getProductById);
  *       400:
  *         description: Dữ liệu không hợp lệ
  */
-
 router.post("/", 
   authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),
   uploadProductImages,
@@ -153,6 +142,8 @@ router.post("/",
  *   put:
  *     tags: [Product]
  *     summary: Cập nhật sản phẩm
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -163,18 +154,7 @@ router.post("/",
  *       content:
  *         multipart/form-data:
  *           schema:
- *             type: object
- *             properties:
- *               name: { type: string }
- *               description: { type: string }
- *               category_id: { type: string }
- *               price: { type: number }
- *               tags: { type: string }
- *               images:
- *                 type: array
- *                 items:
- *                   type: string
- *                   format: binary
+ *             $ref: '#/components/schemas/ProductInput'
  *     responses:
  *       200:
  *         description: Cập nhật thành công
@@ -200,6 +180,8 @@ router.put("/:id",
  *   delete:
  *     tags: [Product]
  *     summary: Xóa sản phẩm
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -211,16 +193,15 @@ router.put("/:id",
  *       404:
  *         description: Không tìm thấy
  */
-
-
 router.delete("/:id",authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), productController.deleteProduct);
 /**
  * @swagger
  * /products/import:
  *   post:
- *     tags:
- *       - Product
+ *     tags: [Product]
  *     summary: Nhập danh sách sản phẩm từ file Excel/CSV
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
