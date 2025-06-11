@@ -1,6 +1,8 @@
 import express from 'express';
 import couponController from '../controllers/coupon.controller.js';
-import { paramsSchema, bodySchema, querySchema } from '../validations/coupon.validation.js';
+import {  createCouponValidation,
+  updateCouponValidation,
+  validateCouponValidation, paramsSchema, bodySchema, querySchema } from '../validations/coupon.validation.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import { authMiddleware } from '../middlewares/index.js';
 import Roles from '../constants/role.enum.js';
@@ -40,7 +42,7 @@ const router = express.Router();
 router.post(
   '/admin/coupons',
   authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),
-  validate({ params: paramsSchema, body: bodySchema, query: querySchema }),
+  validate({ body: createCouponValidation, query: querySchema }),
   couponController.createCoupon
 );
 
@@ -130,7 +132,7 @@ router.get(
 router.patch(
   '/admin/coupons/:id',
   authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),
-  validate({ params: paramsSchema, body: bodySchema, query: querySchema }),
+  validate({ params: paramsSchema, body: updateCouponValidation, query: querySchema }),
   couponController.updateCoupon
 );
 
@@ -188,6 +190,7 @@ router.delete(
 router.post(
   '/coupons/validate',
   authMiddleware.authenticateToken, authMiddleware.authorizeRoles(...Roles.ALL),
+  validate({ body: validateCouponValidation, query: querySchema }),
   couponController.validateCoupon
 );
 
@@ -221,7 +224,6 @@ router.post(
 
 router.post(
   '/coupons/apply',
-  authMiddleware.authorizeRoles(...Roles.ALL),
   couponController.applyCoupon
 );
 
@@ -247,7 +249,7 @@ router.post(
  */
 router.get(
   '/:id/usage-history',
-  authMiddleware.authenticateToken, authMiddleware.authorizeRoles(...Roles.ALL),
+  authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),
   couponController.getUsageHistory
 );
 
