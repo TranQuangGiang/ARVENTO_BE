@@ -1,6 +1,8 @@
 import express from 'express';
 import couponController from '../controllers/coupon.controller.js';
-import { paramsSchema, bodySchema, querySchema } from '../validations/coupon.validation.js';
+import {  createCouponValidation,
+  updateCouponValidation,
+  validateCouponValidation, paramsSchema, bodySchema, querySchema } from '../validations/coupon.validation.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import { authMiddleware } from '../middlewares/index.js';
 import Roles from '../constants/role.enum.js';
@@ -17,7 +19,7 @@ const router = express.Router();
 // Tạo mã giảm giá mới (Admin only)
 /**
  * @swagger
- * /admin/coupons:
+ * /coupons/admin/coupons:
  *   post:
  *     summary: Tạo mã giảm giá mới
  *     tags: [Coupons]
@@ -40,14 +42,14 @@ const router = express.Router();
 router.post(
   '/admin/coupons',
   authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),
-  validate({ params: paramsSchema, body: bodySchema, query: querySchema }),
+  validate({ body: createCouponValidation, query: querySchema }),
   couponController.createCoupon
 );
 
 // Lấy danh sách tất cả mã giảm giá (Admin only)
 /**
  * @swagger
- * /admin/coupons:
+ * /coupons/admin/coupons:
  *   get:
  *     summary: Lấy danh sách mã giảm giá
  *     tags: [Coupons]
@@ -72,7 +74,7 @@ router.get(
 // Lấy chi tiết 1 mã giảm giá (Admin only)
 /**
  * @swagger
- * /admin/coupons/{id}:
+ * /coupons/admin/coupons/{id}:
  *   get:
  *     summary: Lấy thông tin chi tiết một mã giảm giá
  *     tags: [Coupons]
@@ -103,7 +105,7 @@ router.get(
 // Cập nhật mã giảm giá (Admin only)
 /**
  * @swagger
- * /admin/coupons/{id}:
+ * /coupons/admin/coupons/{id}:
  *   patch:
  *     summary: Cập nhật mã giảm giá
  *     tags: [Coupons]
@@ -130,14 +132,14 @@ router.get(
 router.patch(
   '/admin/coupons/:id',
   authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),
-  validate({ params: paramsSchema, body: bodySchema, query: querySchema }),
+  validate({ params: paramsSchema, body: updateCouponValidation, query: querySchema }),
   couponController.updateCoupon
 );
 
 // Xóa mã giảm giá (Admin only)
 /**
  * @swagger
- * /admin/coupons/{id}:
+ * /coupons/admin/coupons/{id}:
  *   delete:
  *     summary: Xóa mã giảm giá
  *     tags: [Coupons]
@@ -165,7 +167,7 @@ router.delete(
 // Validate mã giảm giá (Client - yêu cầu xác thực và kiểm tra role)
 /**
  * @swagger
- * /coupons/validate:
+ * /coupons/coupons/validate:
  *   post:
  *     summary: Kiểm tra tính hợp lệ của mã giảm giá
  *     tags: [Coupons]
@@ -188,6 +190,7 @@ router.delete(
 router.post(
   '/coupons/validate',
   authMiddleware.authenticateToken, authMiddleware.authorizeRoles(...Roles.ALL),
+  validate({ body: validateCouponValidation, query: querySchema }),
   couponController.validateCoupon
 );
 
@@ -195,7 +198,7 @@ router.post(
 
 /**
  * @swagger
- * /coupons/apply:
+ * /coupons/coupons/apply:
  *   post:
  *     summary: Áp dụng mã giảm giá
  *     tags: [Coupons]
@@ -221,14 +224,13 @@ router.post(
 
 router.post(
   '/coupons/apply',
-  authMiddleware.authorizeRoles(...Roles.ALL),
   couponController.applyCoupon
 );
 
 // Lấy lịch sử sử dụng mã (Admin,Client - yêu cầu xác thực)
 /**
  * @swagger
- * /{id}/usage-history:
+ * /coupons/{id}/usage-history:
  *   get:
  *     summary: Lịch sử sử dụng mã giảm giá
  *     tags: [Coupons]
@@ -247,7 +249,7 @@ router.post(
  */
 router.get(
   '/:id/usage-history',
-  authMiddleware.authenticateToken, authMiddleware.authorizeRoles(...Roles.ALL),
+  authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),
   couponController.getUsageHistory
 );
 

@@ -1,140 +1,84 @@
 import express from "express";
-import multer from 'multer';
+import { upload } from '../config/multer.config.js';
+// import { processProductImages } from '../middlewares/uploadv2.middleware.js';
 import { productController } from "../controllers/index.js";
-const upload = multer({ dest: 'uploads/' });
+import { uploadProductImages,processProductImages } from "../middlewares/upload.middleware.js";
+import { authMiddleware } from '../middlewares/index.js'
+import Roles from '../constants/role.enum.js';
 const router = express.Router();
 
 /**
  * @swagger
  * tags:
- *   name: Product
- *   description: Các API liên quan sản phẩm và quản lý sản phẩm
+ *   - name: Product
+ *     description: Các API liên quan sản phẩm và quản lý sản phẩm
  */
 
 /**
  * @swagger
  * /products:
  *   get:
- *     tags:
- *       - Product
+ *     tags: [Product]
  *     summary: Lấy danh sách sản phẩm với lọc, phân trang và sắp xếp
  *     parameters:
  *       - in: query
  *         name: search
- *         schema:
- *           type: string
- *         description: Từ khóa tìm kiếm trên tên và mô tả sản phẩm (regex, không phân biệt hoa thường)
- *       - in: query
- *         name: name
- *         schema:
- *           type: string
- *         description: Lọc theo tên sản phẩm (regex, không phân biệt hoa thường)
+ *         schema: { type: string }
+ *         description: Từ khóa tìm kiếm (tên, mô tả)
  *       - in: query
  *         name: category_id
- *         schema:
- *           type: string
- *         description: Lọc theo ID category chính xác
+ *         schema: { type: string }
+ *         description: ID danh mục
  *       - in: query
  *         name: tags
- *         schema:
- *           type: string
- *         description: Lọc theo danh sách tags (phân tách bằng dấu phẩy)
+ *         schema: { type: string }
+ *         description: Danh sách tags, phân tách bằng dấu phẩy
  *       - in: query
  *         name: color
- *         schema:
- *           type: string
- *         description: Lọc theo màu (chính xác, nằm trong variants)
+ *         schema: { type: string }
+ *         description: Lọc theo màu trong biến thể
  *       - in: query
  *         name: size
- *         schema:
- *           type: string
- *         description: Lọc theo kích cỡ (chính xác, nằm trong variants)
+ *         schema: { type: string }
+ *         description: Lọc theo size trong biến thể
  *       - in: query
  *         name: priceMin
- *         schema:
- *           type: number
- *         description: Giá tối thiểu (lọc khoảng giá)
+ *         schema: { type: number }
+ *         description: Giá thấp nhất
  *       - in: query
  *         name: priceMax
- *         schema:
- *           type: number
- *         description: Giá tối đa (lọc khoảng giá)
+ *         schema: { type: number }
+ *         description: Giá cao nhất
  *       - in: query
  *         name: page
- *         schema:
- *           type: integer
- *           default: 1
- *           minimum: 1
- *         description: Trang hiện tại, mặc định 1
+ *         schema: { type: integer, default: 1, minimum: 1 }
+ *         description: Trang hiện tại
  *       - in: query
  *         name: limit
- *         schema:
- *           type: integer
- *           default: 10
- *           maximum: 50
- *         description: Số sản phẩm trên mỗi trang, tối đa 50
+ *         schema: { type: integer, default: 10, maximum: 50 }
+ *         description: Giới hạn mỗi trang
  *       - in: query
  *         name: sortBy
- *         schema:
- *           type: string
- *           default: createdAt
- *         description: "Trường để sắp xếp (vd: createdAt, price,...)"
+ *         schema: { type: string, default: createdAt }
+ *         description: Trường sắp xếp
  *       - in: query
  *         name: order
- *         schema:
- *           type: string
- *           enum: [asc, desc]
- *           default: desc
- *         description: Thứ tự sắp xếp (asc hoặc desc)
+ *         schema: { type: string, enum: [asc, desc], default: desc }
+ *         description: Thứ tự sắp xếp
  *     responses:
  *       200:
- *         description: Danh sách sản phẩm theo điều kiện lọc, phân trang và sắp xếp
+ *         description: Danh sách sản phẩm
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 totalDocs:
- *                   type: integer
- *                   description: Tổng số sản phẩm
- *                   example: 100
- *                 limit:
- *                   type: integer
- *                   description: Số sản phẩm trên mỗi trang
- *                   example: 10
- *                 totalPages:
- *                   type: integer
- *                   description: Tổng số trang
- *                   example: 10
- *                 page:
- *                   type: integer
- *                   description: Trang hiện tại
- *                   example: 1
- *                 pagingCounter:
- *                   type: integer
- *                   description: Số thứ tự của sản phẩm đầu tiên trên trang hiện tại
- *                   example: 1
- *                 hasPrevPage:
- *                   type: boolean
- *                   description: Có trang trước không
- *                   example: false
- *                 hasNextPage:
- *                   type: boolean
- *                   description: Có trang tiếp theo không
- *                   example: true
- *                 prevPage:
- *                   type: integer
- *                   nullable: true
- *                   description: Số trang trước (nếu có)
- *                   example: null
- *                 nextPage:
- *                   type: integer
- *                   nullable: true
- *                   description: Số trang tiếp theo (nếu có)
- *                   example: 2
+ *                 totalDocs: { type: integer, example: 100 }
+ *                 limit: { type: integer, example: 10 }
+ *                 totalPages: { type: integer, example: 10 }
+ *                 page: { type: integer, example: 1 }
  *                 data:
  *                   type: array
- *                   description: Danh sách sản phẩm
  *                   items:
  *                     $ref: '#/components/schemas/Product'
  */
@@ -143,106 +87,137 @@ router.get("/", productController.getAllProducts);
  * @swagger
  * /products/{id}:
  *   get:
- *     tags:
- *       - Product
- *     summary: Lấy chi tiết sản phẩm theo ID
+ *     tags: [Product]
+ *     summary: Lấy chi tiết sản phẩm
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
- *         schema:
- *           type: string
- *         description: ID của sản phẩm cần lấy
+ *         schema: { type: string }
  *     responses:
  *       200:
- *         description: Thông tin chi tiết sản phẩm
+ *         description: Chi tiết sản phẩm
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Product'
  *       404:
- *         description: Không tìm thấy sản phẩm
+ *         description: Không tìm thấy
  */
 router.get("/:id", productController.getProductById);
 /**
  * @swagger
  * /products:
  *   post:
- *     tags:
- *       - Product
- *     summary: Tạo sản phẩm mới
+ *     tags: [Product]
+ *     summary: Thêm sản phẩm mới
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             $ref: '#/components/schemas/ProductInput'
  *     responses:
  *       201:
- *         description: Tạo thành công sản phẩm
+ *         description: Tạo thành công
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Product'
  *       400:
- *         description: Dữ liệu đầu vào không hợp lệ
+ *         description: Dữ liệu không hợp lệ
  */
-router.post("/", productController.createProduct);
+router.post("/", 
+  authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),
+  uploadProductImages,
+  processProductImages,
+  productController.createProduct
+);
+
 /**
  * @swagger
  * /products/{id}:
  *   put:
- *     tags:
- *       - Product
- *     summary: Cập nhật thông tin sản phẩm
+ *     tags: [Product]
+ *     summary: Cập nhật sản phẩm
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
- *         schema:
- *           type: string
- *         description: ID sản phẩm cần cập nhật
+ *         schema: { type: string }
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             $ref: '#/components/schemas/ProductInput'
  *     responses:
  *       200:
- *         description: Cập nhật thành công sản phẩm
+ *         description: Cập nhật thành công
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Product'
  *       400:
- *         description: Dữ liệu đầu vào không hợp lệ
+ *         description: Dữ liệu không hợp lệ
  *       404:
- *         description: Không tìm thấy sản phẩm
+ *         description: Không tìm thấy
  */
-router.put("/:id", productController.updateProduct);
+
+router.put("/:id", 
+  authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),
+  uploadProductImages,
+  processProductImages,
+  productController.updateProduct
+);
 /**
  * @swagger
  * /products/{id}:
  *   delete:
- *     tags:
- *       - Product
- *     summary: Xóa sản phẩm theo ID
+ *     tags: [Product]
+ *     summary: Xóa sản phẩm
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
- *         schema:
- *           type: string
- *         description: ID sản phẩm cần xóa
+ *         schema: { type: string }
  *     responses:
  *       200:
- *         description: Xóa thành công sản phẩm
+ *         description: Xóa thành công
  *       404:
- *         description: Không tìm thấy sản phẩm
+ *         description: Không tìm thấy
  */
-
-router.delete("/:id", productController.deleteProduct);
+router.delete("/:id",authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), productController.deleteProduct);
+/**
+ * @swagger
+ * /products/import:
+ *   post:
+ *     tags: [Product]
+ *     summary: Nhập danh sách sản phẩm từ file Excel/CSV
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Nhập dữ liệu thành công
+ *       400:
+ *         description: Lỗi định dạng file hoặc dữ liệu không hợp lệ
+ */
 router.post('/import', upload.single('file'), productController.importProducts);
 
 
