@@ -252,5 +252,47 @@ router.get(
   authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),
   couponController.getUsageHistory
 );
-
+/**
+ * @swagger
+ * /coupons/admin/{id}/toggle:
+ *   put:
+ *     summary: Bật hoặc tắt trạng thái hoạt động của mã giảm giá
+ *     tags: [Coupons]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID của mã giảm giá cần bật/tắt
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Cập nhật trạng thái thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Cập nhật trạng thái mã giảm giá thành công"
+ *                 data:
+ *                   $ref: '#/components/schemas/couponModel'
+ *       400:
+ *         description: Yêu cầu không hợp lệ
+ *       401:
+ *         description: Không xác thực (chưa đăng nhập)
+ *       403:
+ *         description: Không có quyền (không phải admin)
+ *       404:
+ *         description: Không tìm thấy mã giảm giá
+ *       500:
+ *         description: Lỗi máy chủ
+ */
+router.put('/admin/:id/toggle',authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), couponController.toggleCouponStatus);
 export default router;

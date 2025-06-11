@@ -1,6 +1,6 @@
 import responseUtil from '../utils/response.util.js';
 import couponService from '../services/coupon.service.js';
-
+import mongoose from 'mongoose';
 // Tạo coupon mới (Admin)
 const createCoupon = async (req, res) => {
   try {
@@ -84,7 +84,30 @@ const getUsageHistory = async (req, res) => {
     responseUtil.errorResponse(res, null, error.message, 400);
   }
 };
+const toggleCouponStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
 
+    // Validate ObjectId trước khi truy vấn DB
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return responseUtil.badRequestResponse(res, null, 'ID không hợp lệ');
+    }
+
+    const updatedCoupon = await couponService.toggleCouponStatus(id);
+
+    return responseUtil.successResponse(
+      res,
+      updatedCoupon,
+      `Mã giảm giá đã được ${updatedCoupon.isActive ? 'bật' : 'tắt'} thành công`
+    );
+  } catch (error) {
+    console.error('Toggle coupon error:', error);
+    if (error.message === 'NOT_FOUND') {
+      return responseUtil.notFoundResponse(res, null, 'Không tìm thấy mã giảm giá');
+    }
+    return responseUtil.errorResponse(res, error, 'Lỗi khi cập nhật trạng thái mã giảm giá');
+  }
+};
 export default {
   createCoupon,
   getAllCoupons,
@@ -94,4 +117,5 @@ export default {
   validateCoupon,
   applyCoupon,
   getUsageHistory,
+  toggleCouponStatus,
 };
