@@ -17,7 +17,7 @@ const router = express.Router();
 // Tạo mã giảm giá mới (Admin only)
 /**
  * @swagger
- * /admin/coupons:
+ * /coupons/admin/coupons:
  *   post:
  *     summary: Tạo mã giảm giá mới
  *     tags: [Coupons]
@@ -47,7 +47,7 @@ router.post(
 // Lấy danh sách tất cả mã giảm giá (Admin only)
 /**
  * @swagger
- * /admin/coupons:
+ * /coupons/admin/coupons:
  *   get:
  *     summary: Lấy danh sách mã giảm giá
  *     tags: [Coupons]
@@ -72,7 +72,7 @@ router.get(
 // Lấy chi tiết 1 mã giảm giá (Admin only)
 /**
  * @swagger
- * /admin/coupons/{id}:
+ * /coupons/admin/coupons/{id}:
  *   get:
  *     summary: Lấy thông tin chi tiết một mã giảm giá
  *     tags: [Coupons]
@@ -103,7 +103,7 @@ router.get(
 // Cập nhật mã giảm giá (Admin only)
 /**
  * @swagger
- * /admin/coupons/{id}:
+ * /coupons/admin/coupons/{id}:
  *   patch:
  *     summary: Cập nhật mã giảm giá
  *     tags: [Coupons]
@@ -137,7 +137,7 @@ router.patch(
 // Xóa mã giảm giá (Admin only)
 /**
  * @swagger
- * /admin/coupons/{id}:
+ * /coupons/admin/coupons/{id}:
  *   delete:
  *     summary: Xóa mã giảm giá
  *     tags: [Coupons]
@@ -165,7 +165,7 @@ router.delete(
 // Validate mã giảm giá (Client - yêu cầu xác thực và kiểm tra role)
 /**
  * @swagger
- * /coupons/validate:
+ * /coupons/coupons/validate:
  *   post:
  *     summary: Kiểm tra tính hợp lệ của mã giảm giá
  *     tags: [Coupons]
@@ -195,7 +195,7 @@ router.post(
 
 /**
  * @swagger
- * /coupons/apply:
+ * /coupons/coupons/apply:
  *   post:
  *     summary: Áp dụng mã giảm giá
  *     tags: [Coupons]
@@ -228,7 +228,7 @@ router.post(
 // Lấy lịch sử sử dụng mã (Admin,Client - yêu cầu xác thực)
 /**
  * @swagger
- * /{id}/usage-history:
+ * /coupons/{id}/usage-history:
  *   get:
  *     summary: Lịch sử sử dụng mã giảm giá
  *     tags: [Coupons]
