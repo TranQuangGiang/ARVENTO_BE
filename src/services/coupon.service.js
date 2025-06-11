@@ -225,6 +225,23 @@ const getCouponUsageHistory = async (couponId) => {
 
   return history;
 };
+//bật tắt
+
+const toggleCouponStatus = async (id) => {
+  try {
+    const coupon = await Coupon.findById(id);
+    if (!coupon) throw new Error('NOT_FOUND');
+
+    coupon.isActive = !coupon.isActive;
+    await coupon.save();
+
+    return coupon;
+  } catch (err) {
+    console.error('Lỗi trong service toggleCouponStatus:', err);
+    throw err;
+  }
+};
+
 export default {
   createCoupon,
   getAllCoupons,
@@ -235,4 +252,5 @@ export default {
   applyCoupon,
   recordCouponUsage,
   getCouponUsageHistory,
+  toggleCouponStatus,
 };
