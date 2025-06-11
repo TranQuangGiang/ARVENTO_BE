@@ -224,7 +224,6 @@ router.post(
 
 router.post(
   '/coupons/apply',
-  authMiddleware.authorizeRoles(...Roles.ALL),
   couponController.applyCoupon
 );
 
@@ -250,7 +249,7 @@ router.post(
  */
 router.get(
   '/:id/usage-history',
-  authMiddleware.authenticateToken, authMiddleware.authorizeRoles(...Roles.ALL),
+  authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),
   couponController.getUsageHistory
 );
 
