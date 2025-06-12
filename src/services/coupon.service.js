@@ -45,18 +45,28 @@ const getCouponById = async (couponId) => {
   }
   return coupon;
 };
-
-// Cập nhật coupon
+//cập nhật coupon
 const updateCoupon = async (couponId, updateData) => {
-  const coupon = await Coupon.findByIdAndUpdate(couponId, updateData, {
+  const existingCoupon = await Coupon.findById(couponId);
+  if (!existingCoupon) {
+    throw new Error('Coupon not found');
+  }
+
+  const startDate = existingCoupon.startDate;
+  const expiryDate = updateData.expiryDate;
+
+  if (expiryDate && startDate && new Date(expiryDate) <= new Date(startDate)) {
+    throw new Error('Ngày hết hạn phải sau ngày bắt đầu');
+  }
+
+  const updatedCoupon = await Coupon.findByIdAndUpdate(couponId, updateData, {
     new: true,
     runValidators: true,
   });
-  if (!coupon) {
-    throw new Error('Coupon not found');
-  }
-  return coupon;
+
+  return updatedCoupon;
 };
+
 
 // Xóa coupon
 const deleteCoupon = async (couponId) => {

@@ -40,7 +40,15 @@ export const updateCouponValidation = Joi.object({
   usageLimit: Joi.number().positive().allow(null),
   perUserLimit: Joi.number().positive(),
   startDate: Joi.date(),
-  expiryDate: Joi.date().greater(Joi.ref('startDate')).allow(null),
+  expiryDate: Joi.date()
+    .allow(null)
+    .custom((value, helpers) => {
+        const { startDate } = helpers.state.ancestors[0]; // truy cập toàn bộ body
+        if (value && startDate && new Date(value) <= new Date(startDate)) {
+            return helpers.message('expiryDate phải sau startDate');
+        }
+        return value;
+    }),
   
   minSpend: Joi.number().positive(),
   maxSpend: Joi.number().positive().allow(null),
