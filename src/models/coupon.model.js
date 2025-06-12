@@ -62,13 +62,6 @@ const couponSchema = new Schema(
         },
         expiryDate: {
             type: Date,
-            validate: {
-                validator: function (value) {
-                    if (!value) return true; // null = không hết hạn
-                    return value > this.startDate; // Ngày hết hạn > ngày bắt đầu
-                },
-                message: 'Ngày hết hạn phải sau ngày bắt đầu',
-            },
         },
 
         // === ĐIỀU KIỆN ÁP DỤNG ===
