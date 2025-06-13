@@ -171,8 +171,8 @@ export const uploadPostImages = (req, res, next) => {
 // Middleware upload ảnh sản phẩm
 export const uploadProductImages = (req, res, next) => {
   productUpload.fields([
-    { name: "images", maxCount: 10 },
-    { name: "variantImages", maxCount: 10 }
+    { name: "images"},
+    { name: "variantImages"}
   ])(req, res, function (err) {
     if (err instanceof multer.MulterError) {
       if (err.code === "LIMIT_FILE_SIZE") {
@@ -195,6 +195,27 @@ export const uploadProductImages = (req, res, next) => {
   });
 };
 
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+
+const safeUnlink = async (filePath) => {
+  let retries = 3;
+  while (retries--) {
+    try {
+      await fs.promises.unlink(filePath);
+      return;
+    } catch (err) {
+      if (err.code === 'EPERM') {
+        await new Promise((res) => setTimeout(res, 100));
+      } else if (err.code !== 'ENOENT') {
+        console.warn(`⚠️ Không thể xoá file: ${filePath} - ${err.message}`);
+        return;
+      }
+    }
+  }
+  console.warn(`⚠️ Không thể xoá file sau nhiều lần thử: ${filePath}`);
+};
+
+
 export const processProductImages = async (req, res, next) => {
   try {
     if (!req.files) return next();
@@ -202,7 +223,6 @@ export const processProductImages = async (req, res, next) => {
     const host = req.protocol + "://" + req.get("host");
     const productUploadDir = path.join(__dirname, "..", "..", "public", "uploads", "products");
 
-    // Tạo thư mục nếu chưa tồn tại
     if (!fs.existsSync(productUploadDir)) {
       fs.mkdirSync(productUploadDir, { recursive: true });
     }
@@ -211,34 +231,27 @@ export const processProductImages = async (req, res, next) => {
       const filename = `${prefix}-${Date.now()}-${Math.round(Math.random() * 1e9)}.jpeg`;
       const outputPath = path.join(productUploadDir, filename);
 
-      // Resize và lưu file ảnh
-      await sharp(file.path)
-        .resize(800, 800, { fit: "inside", withoutEnlargement: true })
-        .toFormat("jpeg")
-        .jpeg({ quality: 80 })
-        .toFile(outputPath);
+ await sharp(file.path)
+  .resize(800, 800, { fit: "inside", withoutEnlargement: true })
+  .toFormat("jpeg")
+  .jpeg({ quality: 80 })
+  .toFile(outputPath);
 
-      // Xóa file gốc tạm (nếu được phép)
-      try {
-        await fs.promises.unlink(file.path);
-      } catch (err) {
-        if (err.code !== "ENOENT" && err.code !== "EPERM") {
-          throw err;
-        }
-        console.warn(`⚠️ Không thể xoá file tạm: ${file.path} - ${err.message}`);
-      }
+//Đợi thêm 100ms để chắc chắn file không bị giữ bởi process
+await new Promise((res) => setTimeout(res, 100));
+
 
       return `${host}/uploads/products/${filename}`;
     };
 
-    // Xử lý images chính
+    // Xử lý ảnh chính
     if (req.files.images && Array.isArray(req.files.images)) {
       req.body.images = await Promise.all(
         req.files.images.map(file => processImage(file, "main"))
       );
     }
 
-    // Xử lý variantImages
+    // Xử lý ảnh biến thể
     if (req.files.variantImages && Array.isArray(req.files.variantImages)) {
       const variantImages = await Promise.all(
         req.files.variantImages.map((file, index) => processImage(file, `variant-${index}`))
@@ -247,14 +260,12 @@ export const processProductImages = async (req, res, next) => {
       if (req.body.variants) {
         let variants;
         try {
-          // Cho phép variants là JSON string hoặc array
           variants = typeof req.body.variants === "string"
             ? JSON.parse(req.body.variants)
             : req.body.variants;
 
           if (!Array.isArray(variants)) throw new Error();
 
-          // Gán ảnh tương ứng cho từng variant
           req.body.variants = variants.map((variant, idx) => ({
             ...variant,
             image: variantImages[idx] || null,
@@ -270,7 +281,7 @@ export const processProductImages = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error("❌ Lỗi xử lý ảnh sản phẩm:", error);
+    console.error("Lỗi xử lý ảnh sản phẩm:", error);
     res.status(500).json({
       success: false,
       message: "Đã xảy ra lỗi khi xử lý ảnh sản phẩm.",
