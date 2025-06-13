@@ -73,7 +73,7 @@ export const create = Joi.object({
     'number.positive': 'Giá khuyến mãi phải lớn hơn 0',
     'number.max': 'Giá khuyến mãi không được lớn hơn giá gốc'
   }),
-  images: Joi.array().items(imageValidation).max(5).messages({
+  images: Joi.array().items(imageValidation).messages({
     'array.max': 'Không được upload quá 5 ảnh cho sản phẩm'
   }),
   variants: Joi.array().items(variant).max(10).messages({
@@ -106,7 +106,7 @@ export const update = Joi.object({
     'number.positive': 'Giá khuyến mãi phải lớn hơn 0',
     'number.max': 'Giá khuyến mãi không được lớn hơn giá gốc'
   }),
-  images: Joi.array().items(imageValidation).max(5).messages({
+  images: Joi.array().items(imageValidation).messages({
     'array.max': 'Không được upload quá 5 ảnh cho sản phẩm'
   }),
   variants: Joi.array().items(variant).max(10).messages({
