@@ -35,6 +35,7 @@ const variant = Joi.object({
     'string.max': 'Kích cỡ không được dài quá 10 ký tự'
   }),
   image: imageValidation,
+
   color: Joi.string().max(50).messages({
     'string.max': 'Màu sắc không được dài quá 50 ký tự'
   }),
@@ -73,9 +74,10 @@ export const create = Joi.object({
     'number.positive': 'Giá khuyến mãi phải lớn hơn 0',
     'number.max': 'Giá khuyến mãi không được lớn hơn giá gốc'
   }),
-  images: Joi.array().items(imageValidation).messages({
-    'array.max': 'Không được upload quá 5 ảnh cho sản phẩm'
-  }),
+ images: Joi.array().items(imageValidation).messages({
+  'array.base': 'TEST_LOG - Mảng ảnh không hợp lệ'
+}),
+
   variants: Joi.array().items(variant).max(10).messages({
     'array.max': 'Không được thêm quá 10 biến thể cho sản phẩm'
   }),
@@ -107,8 +109,9 @@ export const update = Joi.object({
     'number.max': 'Giá khuyến mãi không được lớn hơn giá gốc'
   }),
   images: Joi.array().items(imageValidation).messages({
-    'array.max': 'Không được upload quá 5 ảnh cho sản phẩm'
-  }),
+  'array.base': 'TEST_LOG - Mảng ảnh không hợp lệ'
+}),
+
   variants: Joi.array().items(variant).max(10).messages({
     'array.max': 'Không được thêm quá 10 biến thể cho sản phẩm'
   }),
