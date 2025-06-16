@@ -1,25 +1,56 @@
-import mongoose from "mongoose";
+// models/cart.model.js
+import mongoose from 'mongoose';
 
-const VariantSchema = new mongoose.Schema({
-  color: { type: String, required: true },
-  size: { type: String, required: true },
-  price: { type: Number, required: true },
-  stock: { type: Number, required: true },
+const cartItemSchema = new mongoose.Schema({
+  product_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Product',
+    required: true
+  },
+  variant_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Variant',
+    required: true
+  },
+  quantity: {
+    type: Number,
+    required: true,
+    min: 1
+  },
+  price: {
+    type: mongoose.Types.Decimal128,
+    required: true
+  },
+  total_price: {
+    type: mongoose.Types.Decimal128,
+    required: true
+  }
 }, { _id: false });
 
-const CartItemSchema = new mongoose.Schema({
-  product_id: { type: Number, required: true },
-  selected_variant: { type: VariantSchema, required: true },
-  quantity: { type: Number, required: true },
-  saved_for_later: { type: Boolean, default: false },
-  added_at: { type: Date, default: Date.now },
-}, { _id: false });
-
-const CartSchema = new mongoose.Schema({
-  user_id: { type: mongoose.Schema.Types.ObjectId, required: true, ref: 'User' },
-  items: [CartItemSchema],
-}, {
-  timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
+const cartSchema = new mongoose.Schema({
+  user_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    unique: true // Mỗi user chỉ có 1 cart
+  },
+  items: {
+    type: [cartItemSchema],
+    default: []
+  },
+  total_quantity: {
+    type: Number,
+    default: 0
+  },
+  total_price: {
+    type: mongoose.Types.Decimal128,
+    default: 0.0
+  },
+  updated_at: {
+    type: Date,
+    default: Date.now
+  }
 });
 
-module.exports = mongoose.model('Cart', CartSchema);
+const cartModel = mongoose.model('Cart', cartSchema);
+export default cartModel;
