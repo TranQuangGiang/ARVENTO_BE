@@ -1,4 +1,7 @@
 import mongoose from 'mongoose';
+import mongoosePaginate from 'mongoose-paginate-v2';
+
+import { generateSlug } from '../utils/index.js';
 
 const variantSchema = new mongoose.Schema({
   size: {
@@ -9,8 +12,12 @@ const variantSchema = new mongoose.Schema({
     type: String,
     maxLength: 50
   },
+  image: {
+    type: String
+  },
   stock: {
-    type: Number
+    type: Number,
+    min: 0
   }
 }, { _id: false });
 
@@ -18,7 +25,13 @@ const productSchema = new mongoose.Schema({
   category_id: {
     type: mongoose.Schema.Types.ObjectId,
     required: true,
-    ref: 'Category' 
+    ref: 'Category'
+  },
+  product_code: {
+    type: String,
+    required: true,
+    maxLength: 50,
+    unique: true
   },
   name: {
     type: String,
@@ -33,19 +46,20 @@ const productSchema = new mongoose.Schema({
   description: {
     type: String
   },
-  price: {
+  original_price: {
     type: mongoose.Types.Decimal128,
     required: true
   },
-  stock: {
-    type: Number,
-    required: true
+  sale_price: {
+    type: mongoose.Types.Decimal128
   },
   images: {
-    type: [String]
+    type: [String],
+  
   },
   variants: {
-    type: [variantSchema]
+    type: [variantSchema],
+    validate: [array => array.length <= 10, 'Không được thêm quá 10 biến thể cho sản phẩm']
   },
   tags: {
     type: [String]
@@ -53,7 +67,15 @@ const productSchema = new mongoose.Schema({
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: false }
 });
+productSchema.plugin(mongoosePaginate);
 
-const productModel = mongoose.model('Product', productSchema);
+productSchema.pre('validate', function(next) {
+  if (this.isModified('name') || !this.slug) {
+    this.slug = generateSlug(this.name);
+  }
+  next();
+});
 
-export default productModel;
+
+export default  mongoose.model('Product', productSchema);
+
