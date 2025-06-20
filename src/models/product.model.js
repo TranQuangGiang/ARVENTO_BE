@@ -55,7 +55,7 @@ const productSchema = new mongoose.Schema({
   },
   images: {
     type: [String],
-    validate: [array => array.length <= 5, 'Không được upload quá 5 ảnh cho sản phẩm']
+  
   },
   variants: {
     type: [variantSchema],
