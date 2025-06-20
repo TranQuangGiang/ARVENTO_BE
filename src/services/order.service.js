@@ -269,6 +269,9 @@ const exportOrders = async (filters = {}) => {
     mimetype: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   };
 };
+const countOrders = async () => Order.countDocuments();
+const countNewOrders = async (from) => Order.countDocuments({ createdAt: { $gte: new Date(from) } });
+
 
 export default {
   getAllOrders,
@@ -281,6 +284,8 @@ export default {
   getOrderTimeline,
   updateOrderStatus,
   countAllOrders,
+  countOrders,
+  countNewOrders,
   sumOrderRevenue,
   countOrdersByStatus,
   getRevenueByDate,

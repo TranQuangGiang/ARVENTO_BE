@@ -9,6 +9,7 @@ import categoryRouter from "./category.route.js";
 import couponRouter from "./coupon.routes.js";
 import paymentRouter from "./payment.route.js";
 import orderRouter from "./order.route.js";
+import dashboardRouter from "./dashboard.routes.js";
 const router = express.Router();
 router.use("/users", userRouter);
 router.use("/products", productRouter);
@@ -20,5 +21,6 @@ router.use("/categories", categoryRouter);
 router.use("/coupons", couponRouter);
 router.use("/payments", paymentRouter);
 router.use("/orders", orderRouter);
+router.use("/dashboard", dashboardRouter);
 
 export default router;
