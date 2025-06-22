@@ -9,16 +9,21 @@ import categoryRouter from "./category.route.js";
 import couponRouter from "./coupon.routes.js";
 import paymentRouter from "./payment.route.js";
 import orderRouter from "./order.route.js";
+import dashboardRouter from "./dashboard.routes.js";
+import cartRouter from "./cart.route.js";
+
 const router = express.Router();
 router.use("/users", userRouter);
 router.use("/products", productRouter);
 router.use("/banners", bannerRouter);
 router.use("/auth", authRouter);
 router.use("/posts", postRouter);
+router.use("/carts", cartRouter);
 router.use("/categoryPost", categoryPostRouter);
 router.use("/categories", categoryRouter);
 router.use("/coupons", couponRouter);
 router.use("/payments", paymentRouter);
 router.use("/orders", orderRouter);
+router.use("/dashboard", dashboardRouter);
 
 export default router;
