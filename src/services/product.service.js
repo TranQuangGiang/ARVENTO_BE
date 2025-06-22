@@ -1,6 +1,6 @@
-import xlsx from 'xlsx';
-import mongoose from 'mongoose';
-import fs from 'fs';
+import xlsx from "xlsx";
+import mongoose from "mongoose";
+import fs from "fs";
 
 import { productModel } from "../models/index.js";
 import { logger } from "../config/index.js";
@@ -94,7 +94,7 @@ const importProductsFromExcel = async (filePath) => {
 
     const products = xlsx.utils.sheet_to_json(sheet);
 
-    const productDocs = products.map(item => {
+    const productDocs = products.map((item) => {
       if (!item.name || !item.category_id || !item.price || !item.stock || !item.slug) {
         throw new Error(`Missing required fields in product: ${JSON.stringify(item)}`);
       }
@@ -103,12 +103,12 @@ const importProductsFromExcel = async (filePath) => {
         name: item.name,
         category_id: mongoose.Types.ObjectId(item.category_id),
         slug: item.slug,
-        description: item.description || '',
+        description: item.description || "",
         price: mongoose.Types.Decimal128.fromString(item.price.toString()),
         stock: Number(item.stock),
-        images: item.images ? item.images.split(',').map(i => i.trim()) : [],
+        images: item.images ? item.images.split(",").map((i) => i.trim()) : [],
         variants: item.variants ? JSON.parse(item.variants) : [],
-        tags: item.tags ? item.tags.split(',').map(t => t.trim()) : [],
+        tags: item.tags ? item.tags.split(",").map((t) => t.trim()) : [],
       };
     });
 
@@ -139,12 +139,13 @@ const getRelatedProducts = async (productId, limit = 6) => {
       throw new Error("Product not found");
     }
 
-    const related = await productModel.find({
-      _id: { $ne: productId },
-      category_id: product.category_id
-    })
+    const related = await productModel
+      .find({
+        _id: { $ne: productId },
+        category_id: product.category_id,
+      })
       .limit(limit)
-      .select('-description');
+      .select("-description");
 
     return related;
   } catch (error) {
@@ -152,7 +153,10 @@ const getRelatedProducts = async (productId, limit = 6) => {
     throw error;
   }
 };
-
+const countProducts = async () => productModel.countDocuments();
+const getTopSellingProducts = async (limit = 10) => {
+  return await productModel.find().sort({ sold: -1 }).limit(limit);
+};
 export default {
   getAllProducts,
   getProductById,
@@ -160,5 +164,7 @@ export default {
   updateProduct,
   deleteProduct,
   importProductsFromExcel,
-  getRelatedProducts
+  getRelatedProducts,
+  countProducts,
+  getTopSellingProducts,
 };
