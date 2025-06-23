@@ -1,5 +1,5 @@
 import Order from "../models/order.model.js";
-import { productModel } from "../models/index.js";
+import { Product } from "../models/index.js";
 import ExcelJS from "exceljs";
 
 const checkAndUpdateStock = async (items) => {
@@ -7,7 +7,7 @@ const checkAndUpdateStock = async (items) => {
   const updates = [];
 
   for (const item of items) {
-    const product = await productModel.findById(item.product);
+    const product = await Product.findById(item.product);
     if (!product) {
       errors.push({
         product: item.product,
@@ -106,7 +106,7 @@ const cancelOrder = async (orderId, userId) => {
   await order.save();
 
   for (const item of order.items) {
-    const product = await productModel.findById(item.product);
+    const product = await Product.findById(item.product);
     if (!product) continue;
     if (item.variant && Object.keys(item.variant).length > 0) {
       const idx = product.variants.findIndex((v) => {
