@@ -11,7 +11,7 @@ import paymentRouter from "./payment.route.js";
 import orderRouter from "./order.route.js";
 import dashboardRouter from "./dashboard.routes.js";
 import cartRouter from "./cart.route.js";
-
+import variantRouter from './variant.route.js';
 const router = express.Router();
 router.use("/users", userRouter);
 router.use("/products", productRouter);
@@ -25,5 +25,5 @@ router.use("/coupons", couponRouter);
 router.use("/payments", paymentRouter);
 router.use("/orders", orderRouter);
 router.use("/dashboard", dashboardRouter);
-
+router.use('/variants', variantRouter);
 export default router;

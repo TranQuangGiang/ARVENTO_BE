@@ -771,3 +771,4 @@ router.post("/sync-prices", authMiddleware.authenticateToken, cartController.syn
 router.post("/validate", authMiddleware.authenticateToken, cartController.validateCartForCheckout);
 
 export default router;
+>>>>>>> 062cf405f106d9bb87d81c571c082a71e739cc12

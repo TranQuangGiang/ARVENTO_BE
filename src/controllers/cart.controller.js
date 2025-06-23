@@ -337,3 +337,4 @@ export default {
   syncCartPrices,
   validateCartForCheckout,
 };
+

@@ -1,8 +1,3 @@
-import Cart from "../models/cart.model.js";
-import Product from "../models/product.model.js";
-import couponService from "./coupon.service.js";
-import logger from "../config/logger.config.js";
-
 /**
  * Cart Service - Xử lý tất cả business logic liên quan đến giỏ hàng
  */
@@ -499,3 +494,4 @@ export default {
   getOrCreateCart,
   validateProductAndVariant,
 };
+
