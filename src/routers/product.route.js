@@ -1,116 +1,46 @@
-import express from "express";
-import { upload } from '../config/multer.config.js';
-// import { processProductImages } from '../middlewares/uploadv2.middleware.js';
-import { productController } from "../controllers/index.js";
-import { uploadProductImages,processProductImages } from "../middlewares/upload.middleware.js";
-import { authMiddleware } from '../middlewares/index.js'
+import { Router } from 'express';
+import productController from '../controllers/product.controller.js';
+// import authMiddleware from '../middlewares/auth.middleware.js';
+import { uploadProductImages, processProductImages, handleUploadImportFile  } from '../middlewares/upload.middleware.js';
+// Destructuring từ default export
 import Roles from '../constants/role.enum.js';
-const router = express.Router();
+import { authMiddleware } from '../middlewares/index.js'
 
+// Khởi tạo router
+const router = Router();
 /**
  * @swagger
  * tags:
- *   - name: Product
- *     description: Các API liên quan sản phẩm và quản lý sản phẩm
+ *   name: Products
+ *   description: Quản lý sản phẩm
  */
 
 /**
  * @swagger
  * /products:
  *   get:
- *     tags: [Product]
- *     summary: Lấy danh sách sản phẩm với lọc, phân trang và sắp xếp
- *     parameters:
- *       - in: query
- *         name: search
- *         schema: { type: string }
- *         description: Từ khóa tìm kiếm (tên, mô tả)
- *       - in: query
- *         name: category_id
- *         schema: { type: string }
- *         description: ID danh mục
- *       - in: query
- *         name: tags
- *         schema: { type: string }
- *         description: Danh sách tags, phân tách bằng dấu phẩy
- *       - in: query
- *         name: color
- *         schema: { type: string }
- *         description: Lọc theo màu trong biến thể
- *       - in: query
- *         name: size
- *         schema: { type: string }
- *         description: Lọc theo size trong biến thể
- *       - in: query
- *         name: priceMin
- *         schema: { type: number }
- *         description: Giá thấp nhất
- *       - in: query
- *         name: priceMax
- *         schema: { type: number }
- *         description: Giá cao nhất
- *       - in: query
- *         name: page
- *         schema: { type: integer, default: 1, minimum: 1 }
- *         description: Trang hiện tại
- *       - in: query
- *         name: limit
- *         schema: { type: integer, default: 10, maximum: 50 }
- *         description: Giới hạn mỗi trang
- *       - in: query
- *         name: sortBy
- *         schema: { type: string, default: createdAt }
- *         description: Trường sắp xếp
- *       - in: query
- *         name: order
- *         schema: { type: string, enum: [asc, desc], default: desc }
- *         description: Thứ tự sắp xếp
+ *     summary: Lấy tất cả sản phẩm
+ *     tags: [Products]
  *     responses:
  *       200:
- *         description: Danh sách sản phẩm
+ *         description: Trả về danh sách sản phẩm
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 totalDocs: { type: integer, example: 100 }
- *                 limit: { type: integer, example: 10 }
- *                 totalPages: { type: integer, example: 10 }
- *                 page: { type: integer, example: 1 }
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
  *                 data:
  *                   type: array
  *                   items:
  *                     $ref: '#/components/schemas/Product'
- */
-router.get("/", productController.getAllProducts);
-/**
- * @swagger
- * /products/{id}:
- *   get:
- *     tags: [Product]
- *     summary: Lấy chi tiết sản phẩm
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string }
- *     responses:
- *       200:
- *         description: Chi tiết sản phẩm
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Product'
- *       404:
- *         description: Không tìm thấy
- */
-router.get("/:id", productController.getProductById);
-/**
- * @swagger
- * /products:
+ *
  *   post:
- *     tags: [Product]
- *     summary: Thêm sản phẩm mới
+ *     summary: Tạo sản phẩm mới
+ *     tags: [Products]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -121,34 +51,42 @@ router.get("/:id", productController.getProductById);
  *             $ref: '#/components/schemas/ProductInput'
  *     responses:
  *       201:
- *         description: Tạo thành công
+ *         description: Tạo sản phẩm thành công
+ *       400:
+ *         description: Dữ liệu không hợp lệ
+ *
+ * /products/{id}:
+ *   get:
+ *     summary: Lấy sản phẩm theo ID
+ *     tags: [Products]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của sản phẩm
+ *     responses:
+ *       200:
+ *         description: Thông tin sản phẩm
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Product'
- *       400:
- *         description: Dữ liệu không hợp lệ
- */
-router.post("/", 
-  authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),
-  uploadProductImages,
-  processProductImages,
-  productController.createProduct
-);
-
-/**
- * @swagger
- * /products/{id}:
+ *       404:
+ *         description: Không tìm thấy sản phẩm
+ *
  *   put:
- *     tags: [Product]
  *     summary: Cập nhật sản phẩm
+ *     tags: [Products]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
- *         schema: { type: string }
+ *         schema:
+ *           type: string
  *     requestBody:
  *       required: true
  *       content:
@@ -158,48 +96,30 @@ router.post("/",
  *     responses:
  *       200:
  *         description: Cập nhật thành công
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Product'
  *       400:
  *         description: Dữ liệu không hợp lệ
- *       404:
- *         description: Không tìm thấy
- */
-
-router.put("/:id", 
-  authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),
-  uploadProductImages,
-  processProductImages,
-  productController.updateProduct
-);
-/**
- * @swagger
- * /products/{id}:
+ *
  *   delete:
- *     tags: [Product]
- *     summary: Xóa sản phẩm
+ *     summary: Xoá sản phẩm
+ *     tags: [Products]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
- *         schema: { type: string }
+ *         schema:
+ *           type: string
  *     responses:
  *       200:
- *         description: Xóa thành công
+ *         description: Xoá thành công
  *       404:
- *         description: Không tìm thấy
- */
-router.delete("/:id",authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), productController.deleteProduct);
-/**
- * @swagger
+ *         description: Không tìm thấy sản phẩm
+ *
  * /products/import:
  *   post:
- *     tags: [Product]
- *     summary: Nhập danh sách sản phẩm từ file Excel/CSV
+ *     summary: Import sản phẩm từ file
+ *     tags: [Products]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -214,11 +134,71 @@ router.delete("/:id",authMiddleware.authenticateToken, authMiddleware.authorizeR
  *                 format: binary
  *     responses:
  *       200:
- *         description: Nhập dữ liệu thành công
- *       400:
- *         description: Lỗi định dạng file hoặc dữ liệu không hợp lệ
+ *         description: Import thành công
+ *
+ * /products/export:
+ *   get:
+ *     summary: Export danh sách sản phẩm
+ *     tags: [Products]
+ *     responses:
+ *       200:
+ *         description: Xuất thành công
+ *
+ * /products/search:
+ *   get:
+ *     summary: Tìm kiếm sản phẩm
+ *     tags: [Products]
+ *     parameters:
+ *       - in: query
+ *         name: query
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Trả về kết quả tìm kiếm
+ *
+ * /products/{id}/status:
+ *   patch:
+ *     summary: Cập nhật trạng thái hiển thị sản phẩm
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Cập nhật thành công
+ *
+ * components:
+ *   securitySchemes:
+ *     bearerAuth:
+ *       type: http
+ *       scheme: bearer
+ *       bearerFormat: JWT
  */
-router.post('/import', upload.single('file'), productController.importProducts);
 
+// Public routes
+router.get('/export', productController.exportProducts);
+router.get('/search', productController.searchProducts);
+router.get('/', productController.getAllProducts);
+router.get('/:id', productController.getProductById);
+// router.get('/search', productController.searchProducts);
 
+router.get('/related/:id', productController.getRelatedProducts); //Lấy danh sách sản phẩm liên quan (cùng danh mục) với sản phẩm có ID được cung cấp
+
+// Admin routes
+router.post('/',authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), [uploadProductImages, processProductImages], productController.createProduct);
+router.put('/:id',authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), [uploadProductImages, processProductImages], productController.updateProduct);
+router.delete('/:id',authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), productController.deleteProduct);
+router.patch('/:id/status',authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),productController.updateProductStatus);
+router.post('/import',authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),handleUploadImportFile , productController.importProducts);
+// router.get('/export', productController.exportProducts);
+router.post(
+  '/:productId/options',authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),
+  productController.setOptions 
+);
 export default router;

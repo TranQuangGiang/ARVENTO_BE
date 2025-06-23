@@ -7,7 +7,7 @@ const getAllUsers = async ({ filters, sort, page, limit }) => {
       page,
       limit,
       sort,
-      select: "-password", 
+      select: "-password",
     });
     return result;
   } catch (error) {
@@ -106,7 +106,9 @@ const changeUserRole = async (id, role) => {
     throw new Error(`Failed to change user role: ${error.message}`);
   }
 };
-
+const countUsers = async () => userModel.countDocuments();
+const countNewUsers = async (from) => userModel.countDocuments({ createdAt: { $gte: new Date(from) } });
+const getNewUsers = async (limit = 10) => userModel.find().sort({ createdAt: -1 }).limit(limit).select("-password");
 export default {
   getAllUsers,
   getUserById,
@@ -116,4 +118,7 @@ export default {
   updateUser,
   deleteUser,
   changeUserRole,
-}
+  countUsers,
+  countNewUsers,
+  getNewUsers,
+};
