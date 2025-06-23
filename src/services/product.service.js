@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+
 import { Product, Variant } from "../models/index.js";
 import { logger } from "../config/index.js";
 
@@ -193,6 +194,7 @@ const deleteProduct = async (id) => {
 };
 
 
+
 const getRelatedProducts = async (productId, limit = 6) => {
   try {
     logger.info(`Fetching related products for product ID: ${productId}`);
@@ -202,12 +204,14 @@ const getRelatedProducts = async (productId, limit = 6) => {
       throw new Error("Product not found");
     }
 
+
     const related = await Product.find({
       _id: { $ne: productId },
       category_id: product.category_id
     })
+
       .limit(limit)
-      .select('-description');
+      .select("-description");
 
     return related;
   } catch (error) {
@@ -215,6 +219,7 @@ const getRelatedProducts = async (productId, limit = 6) => {
     throw error;
   }
 };
+
 
 const updateProductStatus = async (id, isActive) => {
   try {
@@ -372,6 +377,7 @@ const importProducts = async (file) => {
 
   return { imported: results, errors };
 };
+
 
 
 

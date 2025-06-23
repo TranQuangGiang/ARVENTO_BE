@@ -73,13 +73,25 @@ const validateProductAndVariant = async (productId, variant, requestedQuantity) 
 const addItem = async (userId, productId, variant, quantity) => {
   try {
     // Validate product và variant
-    const { product, variant: validatedVariant, currentPrice } = await validateProductAndVariant(productId, variant, quantity);
+    const { variant: validatedVariant, currentPrice } = await validateProductAndVariant(productId, variant, quantity);
 
     // Lấy giỏ hàng
     const cart = await getOrCreateCart(userId);
 
     // Kiểm tra xem sản phẩm đã có trong giỏ hàng chưa
-    const existingItemIndex = cart.items.findIndex((item) => item.product.toString() === productId.toString() && item.selected_variant.color === variant.color && item.selected_variant.size === variant.size && !item.saved_for_later);
+    const existingItemIndex = cart.items.findIndex((item) => {
+      // Handle cả populated object và string ID
+      const itemProductId = item.product._id ? item.product._id.toString() : item.product.toString();
+      const matchProduct = itemProductId === productId.toString();
+      const matchVariant = item.selected_variant.color === variant.color && item.selected_variant.size === variant.size;
+      const notSavedForLater = !item.saved_for_later;
+
+      logger.info(`[CART] Comparing item - ProductID: ${itemProductId} vs ${productId}, Variant: ${item.selected_variant.color}-${item.selected_variant.size} vs ${variant.color}-${variant.size}, Match: ${matchProduct && matchVariant && notSavedForLater}`);
+
+      return matchProduct && matchVariant && notSavedForLater;
+    });
+
+    logger.info(`[CART] Checking existing item - ProductID: ${productId}, Variant: ${variant.color}-${variant.size}, Found index: ${existingItemIndex}`);
 
     if (existingItemIndex > -1) {
       // Cập nhật số lượng nếu sản phẩm đã tồn tại
@@ -92,6 +104,8 @@ const addItem = async (userId, productId, variant, quantity) => {
       cart.items[existingItemIndex].unit_price = updatedPrice;
       cart.items[existingItemIndex].total_price = newQuantity * updatedPrice;
       cart.items[existingItemIndex].updated_at = new Date();
+
+      logger.info(`[CART] Updated existing item - New quantity: ${newQuantity}, Total price: ${newQuantity * updatedPrice}`);
     } else {
       // Thêm item mới
       cart.items.push({
@@ -104,6 +118,8 @@ const addItem = async (userId, productId, variant, quantity) => {
         added_at: new Date(),
         updated_at: new Date(),
       });
+
+      logger.info(`[CART] Added new item - Quantity: ${quantity}, Total price: ${quantity * currentPrice}`);
     }
 
     await cart.save();
