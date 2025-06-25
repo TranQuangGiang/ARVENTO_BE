@@ -39,7 +39,7 @@ const router = Router();
  *                     $ref: '#/components/schemas/Product'
  *
  *   post:
- *     summary: Tạo sản phẩm mới
+ *     summary: Tạo mới sản phẩm
  *     tags: [Products]
  *     security:
  *       - bearerAuth: []
@@ -48,12 +48,59 @@ const router = Router();
  *       content:
  *         multipart/form-data:
  *           schema:
- *             $ref: '#/components/schemas/ProductInput'
+ *             type: object
+ *             required:
+ *               - category_id
+ *               - name
+ *               - product_code
+ *               - original_price
+ *               - stock
+ *               - images
+ *             properties:
+ *               category_id:
+ *                 type: string
+ *                 example: 666def4f2e334e4d12783b77
+ *               product_code:
+ *                 type: string
+ *                 example: SP001
+ *               name:
+ *                 type: string
+ *                 example: Giày Sneaker
+ *               slug:
+ *                 type: string
+ *                 example: giay-sneaker
+ *               description:
+ *                 type: string
+ *               original_price:
+ *                 type: number
+ *                 example: 1000000
+ *               sale_price:
+ *                 type: number
+ *                 example: 900000
+ *               stock:
+ *                 type: number
+ *                 example: 100
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["sport", "hot"]
+ *               variants:
+ *                 type: string
+ *                 example: '[{"size":"38","color":"Đen","stock":10}]'
+ *               options:
+ *                 type: string
+ *                 example: '{"size":["38","39"],"color":[{"name":"Đen","hex":"#000000"}]}'
+ *               images:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
  *     responses:
- *       201:
+ *       200:
  *         description: Tạo sản phẩm thành công
  *       400:
- *         description: Dữ liệu không hợp lệ
+ *         description: Dữ liệu không hợp lệ hoặc trùng mã
  *
  * /products/{id}:
  *   get:
@@ -197,8 +244,53 @@ router.delete('/:id',authMiddleware.authenticateToken, authMiddleware.authorizeR
 router.patch('/:id/status',authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),productController.updateProductStatus);
 router.post('/import',authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),handleUploadImportFile , productController.importProducts);
 // router.get('/export', productController.exportProducts);
-router.post(
-  '/:productId/options',authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),
-  productController.setOptions 
-);
+// router.post(
+//   '/:productId/options',authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),
+//   productController.setOptions 
+// );
+/**
+ * @swagger
+ * /products/{productId}/options:
+ *   get:
+ *     summary: Lấy danh sách options (size, color) của sản phẩm
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: productId
+ *         in: path
+ *         required: true
+ *         description: ID sản phẩm
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Thành công, trả về options
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 size:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                   example: ["38", "39", "40"]
+ *                 color:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       name:
+ *                         type: string
+ *                         example: "Đen"
+ *                       hex:
+ *                         type: string
+ *                         example: "#000000"
+ *       404:
+ *         description: Không tìm thấy sản phẩm
+ */
+
+router.get('/:productId/options', authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),productController.getOptions);
+
 export default router;

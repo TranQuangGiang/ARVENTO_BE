@@ -50,7 +50,7 @@ const getProductById = async (req, res) => {
 
 const createProduct = async (req, res) => {
   try {
-    // Parse variants nếu là chuỗi (tối thiểu)
+    // Parse variants nếu là chuỗi
     if (typeof req.body.variants === 'string') {
       try {
         req.body.variants = JSON.parse(req.body.variants);
@@ -59,7 +59,15 @@ const createProduct = async (req, res) => {
       }
     }
 
-    // Gọi service xử lý toàn bộ
+    // Parse options nếu là chuỗi (nếu bạn gửi từ form-data)
+    if (typeof req.body.options === 'string') {
+      try {
+        req.body.options = JSON.parse(req.body.options);
+      } catch (e) {
+        return baseResponse.badRequestResponse(res, null, "Trường 'options' không hợp lệ, phải là JSON hợp lệ");
+      }
+    }
+
     const product = await productService.createProduct(req.body);
 
     return baseResponse.successResponse(res, product, "Tạo sản phẩm thành công");
@@ -68,6 +76,7 @@ const createProduct = async (req, res) => {
     return baseResponse.errorResponse(res, null, err.message, err.statusCode || 500);
   }
 };
+
 
 
 const updateProduct = async (req, res) => {
@@ -385,6 +394,21 @@ console.log("✅ Product updated:", {
   }
 };
 
+const getOptions = async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    const product = await Product.findById(productId).select('options');
+    if (!product) {
+      return baseResponse.notFoundResponse(res, null, 'Không tìm thấy sản phẩm');
+    }
+
+    return baseResponse.successResponse(res, product.options, 'Lấy options thành công');
+  } catch (err) {
+    logger.error(`[GET] /products/${req.params.productId}/options - Error: ${err.message}`, { stack: err.stack });
+    return baseResponse.errorResponse(res, null, err.message || 'Đã xảy ra lỗi');
+  }
+};
 
 
 
@@ -403,6 +427,7 @@ export default {
   exportProducts,
   importProducts,
   getRelatedProducts,
-  setOptions
+  // setOptions
+  getOptions
 };
 
