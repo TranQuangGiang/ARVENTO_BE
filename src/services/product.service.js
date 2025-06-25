@@ -76,31 +76,58 @@ const createProduct = async (data) => {
     }
     data.slug = slug;
 
-   // Ép kiểu giá trước khi validate
-data.original_price = parseFloat(data.original_price);
-data.sale_price = parseFloat(data.sale_price);
+    // Ép kiểu giá trước khi validate
+    data.original_price = parseFloat(data.original_price);
+    data.sale_price = parseFloat(data.sale_price);
 
-// Validate bằng Joi sau khi ép kiểu
-const { error } = productValidate.create.validate(data, { abortEarly: false });
-if (error) {
-  throw new Error(error.details.map(e => e.message).join(', '));
-}
+    // Validate bằng Joi
+    const { error } = productValidate.create.validate(data, { abortEarly: false });
+    if (error) {
+      throw new Error(error.details.map(e => e.message).join(', '));
+    }
 
-// Kiểm tra logic giá
-if (data.sale_price > data.original_price) {
-  throw new Error('Giá khuyến mãi không được lớn hơn giá gốc');
-}
+    if (data.sale_price > data.original_price) {
+      throw new Error('Giá khuyến mãi không được lớn hơn giá gốc');
+    }
 
-    // Kiểm tra product_code trùng
+    // Check trùng mã
     const existingProduct = await Product.findOne({ product_code: data.product_code });
     if (existingProduct) {
       throw new Error('Mã sản phẩm đã tồn tại');
     }
 
-    // Tạo sản phẩm
+    // ===== Normalize options (nếu có) =====
+    if (data.options && typeof data.options === 'object') {
+      const normalizeSizes = (arr) =>
+        Array.isArray(arr)
+          ? arr
+              .filter(v => typeof v === 'string' && v.trim())
+              .map(v => v.trim().toUpperCase())
+          : [];
+
+      const capitalize = (str) =>
+        str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+
+      const normalizeColors = (arr) =>
+        Array.isArray(arr)
+          ? arr
+              .filter(v => v && typeof v === 'object' && typeof v.name === 'string')
+              .map(v => ({
+                name: capitalize(v.name.trim()),
+                hex: (typeof v.hex === 'string' ? v.hex.trim().toUpperCase() : '#CCCCCC')
+              }))
+          : [];
+
+      data.options.size = normalizeSizes(data.options.size);
+      data.options.color = normalizeColors(data.options.color);
+    } else {
+      data.options = { size: [], color: [] };
+    }
+
+    // ===== Tạo sản phẩm =====
     const product = await Product.create(data);
 
-    // Nếu có variants thì tạo từng cái
+    // Nếu có biến thể
     if (Array.isArray(data.variants) && data.variants.length > 0) {
       await Promise.all(data.variants.map(variant =>
         Variant.create({
@@ -118,6 +145,7 @@ if (data.sale_price > data.original_price) {
     throw error;
   }
 };
+
 
 const updateProduct = async (id, data) => {
   try {
