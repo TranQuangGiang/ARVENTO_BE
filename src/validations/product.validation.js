@@ -61,7 +61,16 @@ export const productValidate = {
       'array.min': 'Cần ít nhất 1 ảnh sản phẩm',
       'any.required': 'Ảnh sản phẩm là bắt buộc'
     }),
-    variants: Joi.array().items(variantValidation).optional()
+    variants: Joi.array().items(variantValidation).optional(),
+      options: Joi.object({
+    size: Joi.array().items(Joi.string()).optional(),
+    color: Joi.array().items(
+      Joi.object({
+        name: Joi.string().required(),
+        hex: Joi.string().optional()
+      })
+    ).optional()
+  }).optional()
 
   }),
   update: Joi.object({
