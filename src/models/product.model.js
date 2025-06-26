@@ -1,59 +1,115 @@
 import mongoose from 'mongoose';
-
-const variantSchema = new mongoose.Schema({
-  size: {
-    type: String,
-    maxLength: 10
-  },
-  color: {
-    type: String,
-    maxLength: 50
-  },
-  stock: {
-    type: Number
-  }
-}, { _id: false });
-
+import Variant from './variant.model.js';
+import mongoosePaginate from 'mongoose-paginate-v2';
 const productSchema = new mongoose.Schema({
   category_id: {
     type: mongoose.Schema.Types.ObjectId,
     required: true,
-    ref: 'Category' 
+    ref: 'Category'
+  },
+  product_code: {
+    type: String,
+    required: true,
+    maxLength: 50,
+    unique: true,
+    trim: true
   },
   name: {
     type: String,
     required: true,
-    maxLength: 150
+    maxLength: 150,
+    trim: true
   },
   slug: {
     type: String,
     required: true,
-    maxLength: 150
+    maxLength: 150,
+    unique: true,
+    lowercase: true,
+    trim: true
   },
   description: {
-    type: String
+    type: String,
+    default: ''
   },
-  price: {
+  original_price: {
     type: mongoose.Types.Decimal128,
-    required: true
+    required: true,
+    min: 0
+  },
+  sale_price: {
+    type: mongoose.Types.Decimal128,
+    min: 0,
+    default: 0,
+    validate: {
+  validator: function(value) {
+    const original = parseFloat(this.original_price?.toString() || '0');
+    const sale = parseFloat(value?.toString() || '0');
+    return sale <= original;
+  },
+  message: 'Giá khuyến mãi không được lớn hơn giá gốc'
+}
   },
   stock: {
     type: Number,
-    required: true
+    required: true,
+    min: 0
   },
-  images: {
-    type: [String]
-  },
-  variants: {
-    type: [variantSchema]
-  },
+  images: [{
+  url: String,
+  alt: String
+}],
   tags: {
-    type: [String]
-  }
+    type: [String],
+    default: []
+  },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  is_manual: {
+    type: Boolean,
+    default: false // true: admin điều khiển trạng thái, false: tự động theo tồn kho
+  },
+ options: {
+  type: Object, // ✅ Không dùng Map
+  default: () => ({ size: [], color: [] })
+}
 }, {
-  timestamps: { createdAt: 'created_at', updatedAt: false }
+  timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
+});
+productSchema.plugin(mongoosePaginate);
+// Tính tổng tồn kho và tự động cập nhật trạng thái
+productSchema.methods.calculateTotalStock = async function() {
+  const variants = await Variant.find({ product_id: this._id });
+  const totalStock = variants.reduce((sum, variant) => sum + variant.stock, 0);
+  this.stock = totalStock;
+
+  if (!this.is_manual) {
+    this.isActive = totalStock > 0;
+  }
+
+  await this.save();
+  return totalStock;
+};
+productSchema.methods.validatePrice = function() {
+  const original = parseFloat(this.original_price?.toString() || '0');
+  const sale = parseFloat(this.sale_price?.toString() || '0');
+  if (sale > original) {
+     console.log('→ So sánh giá: sale =', sale, 'original =', original);
+    throw new Error('Giá khuyến mãi không được lớn hơn giá gốc');
+  }
+};
+
+// Hook pre-save để kiểm tra giá
+productSchema.pre('save', function(next) {
+  try {
+    this.validatePrice();
+    next();
+  } catch (error) {
+    next(error);
+  }
 });
 
-const productModel = mongoose.model('Product', productSchema);
-
-export default productModel;
+const Product = mongoose.model('Product', productSchema);
+export default Product;
