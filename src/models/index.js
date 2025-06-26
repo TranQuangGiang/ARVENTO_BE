@@ -10,4 +10,4 @@ export { default as couponUsageModel } from "./couponUsage.model.js";
 export { default as cartModel } from "./cart.model.js";
 export { default as Variant } from './variant.model.js';
 export { default as favoriteModel } from './favorite.model.js';
-
+export { default as Review } from './review.model.js';
