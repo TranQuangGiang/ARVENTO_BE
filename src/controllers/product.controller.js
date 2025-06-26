@@ -88,7 +88,8 @@ const updateProduct = async (req, res) => {
     if (!product) {
       return baseResponse.notFoundResponse(res, null, 'Product not found');
     }
-        // Handle form-data variants manually
+
+    // Parse variants từ form-data (nếu có dạng `variants[0][...]`)
     if (!req.body.variants && req.body['variants[0][stock]']) {
       const variants = [];
       let i = 0;
@@ -103,7 +104,8 @@ const updateProduct = async (req, res) => {
       }
       req.body.variants = variants;
     }
-    // Parse variants nếu là chuỗi
+
+    // Parse variants nếu là chuỗi JSON
     if (typeof req.body.variants === 'string') {
       try {
         req.body.variants = JSON.parse(req.body.variants);
@@ -112,7 +114,7 @@ const updateProduct = async (req, res) => {
       }
     }
 
-    // Kiểm tra mã sản phẩm có trùng không
+    // Kiểm tra mã sản phẩm trùng
     if (req.body.product_code && req.body.product_code !== product.product_code) {
       const existing = await Product.findOne({ product_code: req.body.product_code });
       if (existing) {
@@ -120,30 +122,40 @@ const updateProduct = async (req, res) => {
       }
     }
 
-    // Tạo lại slug nếu đổi tên
+    // Cập nhật slug nếu tên thay đổi
     if (req.body.name && req.body.name !== product.name) {
       req.body.slug = slugify(req.body.name);
     }
 
-    // Gọi service để update
+    // Gọi service để cập nhật sản phẩm
     const updatedProduct = await productService.updateProduct(id, {
       ...req.body,
       updated_at: new Date()
     });
 
-    // Nếu có variants mới → xóa và tạo lại
-    if (Array.isArray(req.body.variants)) {
+    // ✅ Nếu gửi variants và có cờ overwrite
+    if (
+      req.body.overwriteVariants === 'true' || req.body.overwriteVariants === true
+    ) {
+      const variants = Array.isArray(req.body.variants) ? req.body.variants : [];
+
+      // Xoá toàn bộ variant cũ
       await Variant.deleteMany({ product_id: id });
 
-      await Promise.all(req.body.variants.map(variant =>
-        Variant.create({
-          ...variant,
-          product_id: id
-        })
-      ));
+      // Tạo lại
+      if (variants.length > 0) {
+        await Promise.all(
+          variants.map((variant) =>
+            Variant.create({
+              ...variant,
+              product_id: id,
+            })
+          )
+        );
+      }
     }
 
-    // Cập nhật lại tổng stock
+    // Cập nhật lại tổng stock từ variant
     await updatedProduct.calculateTotalStock();
 
     return baseResponse.successResponse(res, updatedProduct, 'Cập nhật sản phẩm thành công');
@@ -152,6 +164,7 @@ const updateProduct = async (req, res) => {
     return baseResponse.errorResponse(res, null, err.message, err.statusCode || 500);
   }
 };
+
 
 const updateProductStatus = async (req, res) => {
   try {
