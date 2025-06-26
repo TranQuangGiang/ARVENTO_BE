@@ -13,9 +13,9 @@ const bannerDir = path.join(__dirname, "..", "..", "public", "uploads", "banners
 const postDir = path.join(__dirname, "..", "..", "public", "uploads", "posts");
 const productDir = path.join(__dirname, "..", "..", "public", "uploads", "products");
 const importDir = path.join(__dirname, "..", "..", "public", "uploads", "imports");
-
+const reviewDir = path.join(__dirname, "..", "..", "public", "uploads", "reviews");
 // Đảm bảo thư mục tồn tại
-[bannerDir, postDir, productDir , importDir].forEach((dir) => {
+[bannerDir, postDir, productDir , importDir, reviewDir].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
@@ -197,12 +197,42 @@ export const handleUploadImportFile = (req, res, next) => {
     next();
   });
 };
-
+const reviewUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif|webp/;
+    const isValid = allowedTypes.test(file.mimetype);
+    cb(isValid ? null : new Error("Chỉ cho phép hình ảnh"), isValid);
+  }
+}).array("images", 5);
+export const handleReviewUpload = (req, res, next) => {
+  reviewUpload(req, res, async (err) => {
+    if (err) return res.status(400).json({ success: false, message: err.message });
+    const host = `${req.protocol}://${req.get("host")}`;
+    if (req.files?.length) {
+      req.body.images = await Promise.all(
+        req.files.map(async (file, index) => {
+          const ext = path.extname(file.originalname) || ".jpg";
+          const filename = `review-${Date.now()}-${index}${ext}`;
+          const fullPath = path.join(reviewDir, filename);
+          await sharp(file.buffer)
+            .resize(800, 800, { fit: "inside", withoutEnlargement: true })
+            .toFormat(ext.replace(".", ""), { quality: 80 })
+            .toFile(fullPath);
+          return `${host}/uploads/reviews/${filename}`;
+        })
+      );
+    }
+    next();
+  });
+};
 export default {
   uploadBannerImage,
   uploadPostImages,
   uploadProductImages,
   processProductImages,
   uploadImportFile,
-  handleUploadImportFile
+  handleUploadImportFile,
+  handleReviewUpload,
 };
