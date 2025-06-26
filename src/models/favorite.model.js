@@ -1,19 +1,30 @@
 import mongoose from 'mongoose';
 
-const favoriteSchema = new mongoose.Schema({
-  user_id: {
-    type: mongoose.Schema.Types.ObjectId,
-    required: true,
-    ref: 'User'
+const favoriteSchema = new mongoose.Schema(
+  {
+    user_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    product_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Product',
+      required: true,
+    },
+    created_at: {
+      type: Date,
+      default: Date.now,
+    },
   },
-  product_id: {
-    type: mongoose.Schema.Types.ObjectId,
-    required: true,
-    ref: 'Product'
+  {
+    versionKey: false, // tắt __v
   }
-}, {
-  timestamps: { createdAt: 'created_at', updatedAt: false },
-  versionKey: false
-});
+);
 
-export default mongoose.model('Favorite', favoriteSchema);
+// ✅ Đảm bảo 1 user chỉ thích 1 sản phẩm 1 lần
+favoriteSchema.index({ user_id: 1, product_id: 1 }, { unique: true });
+
+const favoriteModel = mongoose.model('Favorite', favoriteSchema);
+
+export default favoriteModel;
