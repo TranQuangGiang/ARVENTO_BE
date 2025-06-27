@@ -1,17 +1,28 @@
 import Review from '../models/review.model.js';
 import Order from '../models/order.model.js';
 import mongoose from 'mongoose';
+
+const badWords = ['địt', 'cặc', 'lồn', 'đéo', 'ngu', 'fuck', 'shit', 'tệ', 'xấu'];
+
+function containsBadWords(content) {
+  return badWords.some(word =>
+    content?.toLowerCase().includes(word.toLowerCase())
+  );
+}
+
 const create = async (userId, body) => {
   const productId = new mongoose.Types.ObjectId(body.product_id);
 
-  // Kiểm tra đã đánh giá sản phẩm chưa
+  // Kiểm tra đã từng đánh giá sản phẩm chưa
   const existed = await Review.findOne({
     user_id: userId,
     product_id: productId,
   });
-  if (existed) throw new Error('Bạn đã đánh giá sản phẩm này rồi.');
+  if (existed) {
+    throw new Error('Bạn đã đánh giá sản phẩm này rồi.');
+  }
 
-  // Kiểm tra user đã mua sản phẩm đó chưa (trong đơn hàng đã hoàn tất)
+  // Kiểm tra user đã mua sản phẩm đó chưa
   const hasPurchased = await Order.exists({
     user: userId,
     status: 'completed',
@@ -21,13 +32,19 @@ const create = async (userId, body) => {
     throw new Error('Bạn chỉ có thể đánh giá sản phẩm sau khi mua và nhận hàng.');
   }
 
-  // Tạo đánh giá
-  return await Review.create({
+  // Check blacklist đúng field
+  const isBad = containsBadWords(body.comment);
+
+  const review = await Review.create({
     ...body,
     product_id: productId,
     user_id: userId,
+    approved: !isBad, // true nếu không vi phạm
   });
+
+  return review;
 };
+
 
 const getByProduct = async (productId, query) => {
   const { page = 1, limit = 10, sortBy = 'created_at', order = 'desc', minRating, maxRating } = query;
@@ -62,12 +79,26 @@ const getByUser = async (userId) => {
 };
 
 const update = async (userId, reviewId, data) => {
-  const review = await Review.findOneAndUpdate(
-    { _id: reviewId, user_id: userId },
-    { ...data, updated_at: new Date(), approved: false },
-    { new: true }
-  );
-  if (!review) throw new Error('Không tìm thấy đánh giá hoặc không có quyền.');
+  const review = await Review.findOne({ _id: reviewId, user_id: userId });
+  if (!review) {
+    throw new Error('Không tìm thấy đánh giá hoặc không có quyền.');
+  }
+
+  // Nếu có chỉnh sửa content
+  if (data.content !== undefined) {
+    if (containsBadWords(data.content)) {
+      data.approved = false;
+      console.log("Phát hiện từ xấu, review sẽ chờ admin duyệt.");
+    } else {
+      data.approved = true;
+    }
+  }
+
+  data.updated_at = new Date();
+
+  Object.assign(review, data);
+  await review.save();
+
   return review;
 };
 
@@ -102,8 +133,29 @@ const getAll = async (query) => {
   };
 };
 
-const approve = async (id) => await Review.findByIdAndUpdate(id, { approved: true }, { new: true });
-const hide = async (id) => await Review.findByIdAndUpdate(id, { hidden: true }, { new: true });
+const approve = async (id) => {
+  const review = await Review.findById(id);
+  if (!review) {
+    throw new Error('Review not found.');
+  }
+
+  // Không cần check blacklist lại
+  review.approved = true;
+  await review.save();
+
+  return review;
+};
+const hide = async (id) => {
+  const review = await Review.findById(id);
+  if (!review) {
+    throw new Error('Không tìm thấy đánh giá.');
+  }
+
+  review.hidden = !review.hidden;
+  await review.save();
+
+  return review;
+};
 const reply = async (id, reply) => await Review.findByIdAndUpdate(id, { reply }, { new: true });
 const deleteByAdmin = async (id) => await Review.findByIdAndDelete(id);
 

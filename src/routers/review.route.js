@@ -35,7 +35,6 @@ const router = express.Router();
  *       400:
  *         description: Lỗi đầu vào
  */
-
 router.post('/', authMiddleware.authenticateToken, handleReviewUpload, validate(createReviewSchema), reviewController.createReview);
 /**
  * @swagger
@@ -53,7 +52,6 @@ router.post('/', authMiddleware.authenticateToken, handleReviewUpload, validate(
  *       200:
  *         description: Thành công
  */
-
 router.get('/product/:productId', reviewController.getReviewsByProduct);
 /**
  * @swagger
@@ -94,7 +92,6 @@ router.get('/my-reviews',authMiddleware.authenticateToken, reviewController.getM
  *       200:
  *         description: Cập nhật thành công
  */
-
 router.put('/:reviewId',authMiddleware.authenticateToken,  handleReviewUpload, validate(updateReviewSchema), reviewController.updateReview);
 /**
  * @swagger
@@ -147,7 +144,6 @@ router.get('/:productId/stats',  authMiddleware.authenticateToken, reviewControl
  *       200:
  *         description: Thành công
  */
-
 router.get('/admin/reviews',authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),   reviewController.getAllReviews);
 /**
  * @swagger
@@ -173,7 +169,7 @@ router.put('/admin/reviews/:reviewId/approve',authMiddleware.authenticateToken, 
  * @swagger
  * /reviews/admin/reviews/{reviewId}/hide:
  *   put:
- *     summary: "[Admin] Ẩn đánh giá"
+ *     summary: "[Admin] Ẩn hoặc hiện đánh giá"
  *     tags: [Reviews]
  *     security:
  *       - bearerAuth: []
@@ -183,9 +179,19 @@ router.put('/admin/reviews/:reviewId/approve',authMiddleware.authenticateToken, 
  *         required: true
  *         schema:
  *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               hidden:
+ *                 type: boolean
+ *                 example: true
  *     responses:
  *       200:
- *         description: Ẩn thành công
+ *         description: Cập nhật trạng thái ẩn/hiện thành công
  */
 
 

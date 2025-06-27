@@ -5,7 +5,12 @@ export const createReview = async (req, res) => {
   try {
     const images = req.body.images || [];
     const result = await reviewService.create(req.user._id, { ...req.body, images });
-    return response.createdResponse(res, result, 'Đánh giá đã được gửi.');
+    
+    const message = result.approved
+      ? "Đánh giá đã được tự động duyệt."
+      : "Đánh giá chứa từ ngữ không phù hợp, đang chờ admin duyệt.";
+
+    return response.createdResponse(res, result, message);
   } catch (err) {
     return response.errorResponse(res, null, err.message);
   }
@@ -32,8 +37,17 @@ export const getMyReviews = async (req, res) => {
 export const updateReview = async (req, res) => {
   try {
     const images = req.body.images || [];
-    const result = await reviewService.update(req.user._id, req.params.reviewId, { ...req.body, images });
-    return response.successResponse(res, result, 'Cập nhật đánh giá thành công.');
+    const result = await reviewService.update(
+      req.user._id,
+      req.params.reviewId,
+      { ...req.body, images }
+    );
+
+    const message = result.approved
+      ? 'Cập nhật đánh giá thành công và đã tự động duyệt.'
+      : 'Cập nhật đánh giá thành công. Đánh giá đang chờ admin duyệt.';
+
+    return response.successResponse(res, result, message);
   } catch (err) {
     return response.errorResponse(res, null, err.message);
   }
@@ -70,7 +84,11 @@ export const approveReview = async (req, res) => {
 export const hideReview = async (req, res) => {
   try {
     const result = await reviewService.hide(req.params.reviewId);
-    return response.successResponse(res, result, 'Đã ẩn đánh giá.');
+    const message = result.hidden
+      ? 'Đánh giá đã được ẩn.'
+      : 'Đánh giá đã được hiển thị.';
+
+    return response.successResponse(res, result, message);
   } catch (err) {
     return response.errorResponse(res, null, err.message);
   }
