@@ -376,7 +376,10 @@ router.put("/items", authMiddleware.authenticateToken, validate({ body: updateQu
  *       500:
  *         description: Lỗi server
  */
-router.delete("/items", authMiddleware.authenticateToken, validate({ body: removeItemSchema }), cartController.removeItem);
+router.delete("/items", authMiddleware.authenticateToken,(req, res, next) => {
+    console.log("BODY RECEIVED >>>", JSON.stringify(req.body, null, 2));
+    next();
+  }, validate({ body: removeItemSchema }), cartController.removeItem);
 
 /**
  * @swagger
@@ -406,7 +409,7 @@ router.delete("/items", authMiddleware.authenticateToken, validate({ body: remov
  *         description: Lỗi server
  */
 router.delete("/", authMiddleware.authenticateToken, cartController.clearCart);
-
+//test sau
 /**
  * @swagger
  * /carts/coupons:
@@ -451,7 +454,7 @@ router.delete("/", authMiddleware.authenticateToken, cartController.clearCart);
  *         description: Lỗi server
  */
 router.post("/coupons", authMiddleware.authenticateToken, validate({ body: applyCouponSchema }), cartController.applyCoupon);
-
+//sửa lại 
 /**
  * @swagger
  * /carts/coupons:
@@ -480,7 +483,7 @@ router.post("/coupons", authMiddleware.authenticateToken, validate({ body: apply
  *         description: Lỗi server
  */
 router.delete("/coupons", authMiddleware.authenticateToken, cartController.removeCoupon);
-
+//test sau
 /**
  * @swagger
  * /carts/items/save-later:
@@ -644,7 +647,7 @@ router.post("/items/move-to-cart", authMiddleware.authenticateToken, validate({ 
  *       500:
  *         description: Lỗi server
  */
-router.put("/bulk-update", authMiddleware.authenticateToken, validate({ body: bulkUpdateSchema }), cartController.bulkUpdateItems);
+router.put("/bulk-update", authMiddleware.authenticateToken, validate({ body: bulkUpdateSchema }), cartController.bulkUpdateItemsController);// sửa lại vì khi sửa nó lại update thêm mới trùng với item  thêmn vào giỏ
 
 /**
  * @swagger
@@ -700,7 +703,7 @@ router.put("/bulk-update", authMiddleware.authenticateToken, validate({ body: bu
  *         description: Lỗi server
  */
 router.get("/summary", authMiddleware.authenticateToken, cartController.getCartSummary);
-
+//thêm hiển thị discount_amount
 /**
  * @swagger
  * /carts/sync-prices:
@@ -729,7 +732,7 @@ router.get("/summary", authMiddleware.authenticateToken, cartController.getCartS
  *         description: Lỗi server
  */
 router.post("/sync-prices", authMiddleware.authenticateToken, cartController.syncCartPrices);
-
+//thêm hiển thị discount_amount
 /**
  * @swagger
  * /carts/validate:
@@ -769,6 +772,6 @@ router.post("/sync-prices", authMiddleware.authenticateToken, cartController.syn
  *         description: Lỗi server
  */
 router.post("/validate", authMiddleware.authenticateToken, cartController.validateCartForCheckout);
-
+//thêm hiển thị discount_amount
 export default router;
 

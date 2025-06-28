@@ -5,10 +5,18 @@ import mongoosePaginate from "mongoose-paginate-v2";
 const CartVariantSchema = new mongoose.Schema(
   {
     color: {
-      type: String,
-      required: [true, "Màu sắc là bắt buộc"],
-      trim: true,
-      maxLength: [50, "Màu sắc không được vượt quá 50 ký tự"],
+      name: {
+        type: String,
+        required: [true, "Tên màu sắc là bắt buộc"],
+        trim: true,
+        maxLength: [50, "Tên màu sắc không được vượt quá 50 ký tự"],
+      },
+      hex: {
+        type: String,
+        trim: true,
+        maxLength: [20, "Mã màu không được vượt quá 20 ký tự"],
+        default: null,
+      }
     },
     size: {
       type: String,
@@ -112,11 +120,11 @@ const CartSchema = new mongoose.Schema(
         default: 0,
         min: [0, "Số tiền giảm giá không được âm"],
       },
-      discount_type: {
-        type: String,
-        enum: ["percentage", "fixed"],
-        default: "percentage",
-      },
+  discount_type: {
+  type: String,
+  enum: ["percentage", "fixed", "fixed_amount"],
+  default: "percentage",
+},
     },
     total: {
       type: mongoose.Types.Decimal128,
@@ -130,6 +138,10 @@ const CartSchema = new mongoose.Schema(
         return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       },
     },
+    final_total: {
+  type: Number,
+  default: 0,
+},
   },
   {
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" },

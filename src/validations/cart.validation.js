@@ -9,94 +9,81 @@ const objectIdValidator = (value, helpers) => {
   return value;
 };
 
-// Schema cho variant validation
-const variantSchema = Joi.object({
-  color: Joi.string()
+// Schema cho màu sắc (object)
+const colorObjectSchema = Joi.object({
+  name: Joi.string()
     .trim()
     .max(50)
     .required()
     .messages({
-      'string.empty': 'Màu sắc không được để trống',
-      'string.max': 'Màu sắc không được vượt quá 50 ký tự',
-      'any.required': 'Màu sắc là bắt buộc'
+      "string.empty": "Tên màu sắc không được để trống",
+      "string.max": "Tên màu sắc không được vượt quá 50 ký tự",
+      "any.required": "Thiếu tên màu sắc",
     }),
+  hex: Joi.string()
+    .trim()
+    .max(20)
+    .allow(null, "")
+    .messages({
+      "string.max": "Mã màu không được vượt quá 20 ký tự",
+    }),
+});
+
+// Variant schema
+const variantSchema = Joi.object({
+  color: colorObjectSchema.required().messages({
+    "any.required": "Thiếu thông tin màu sắc",
+    "object.base": "Màu sắc phải là object",
+  }),
   size: Joi.string()
     .trim()
     .max(20)
     .required()
     .messages({
-      'string.empty': 'Kích cỡ không được để trống',
-      'string.max': 'Kích cỡ không được vượt quá 20 ký tự',
-      'any.required': 'Kích cỡ là bắt buộc'
+      "string.empty": "Kích cỡ không được để trống",
+      "string.max": "Kích cỡ không được vượt quá 20 ký tự",
+      "any.required": "Thiếu kích cỡ",
     }),
-  price: Joi.number()
-    .positive()
-    .required()
-    .messages({
-      'number.base': 'Giá sản phẩm phải là số',
-      'number.positive': 'Giá sản phẩm phải lớn hơn 0',
-      'any.required': 'Giá sản phẩm là bắt buộc'
-    }),
-  stock: Joi.number()
-    .integer()
-    .min(0)
-    .required()
-    .messages({
-      'number.base': 'Số lượng tồn kho phải là số nguyên',
-      'number.min': 'Số lượng tồn kho không được âm',
-      'any.required': 'Số lượng tồn kho là bắt buộc'
-    })
 });
-
-// Validation cho thêm sản phẩm vào giỏ hàng
+// Schema cho thêm sản phẩm vào giỏ hàng
 export const addItemSchema = Joi.object({
   product_id: Joi.string()
-    .custom(objectIdValidator, 'ObjectId validation')
+    .trim()
     .required()
     .messages({
-      'any.required': 'ID sản phẩm là bắt buộc',
-      'any.invalid': 'ID sản phẩm không hợp lệ',
-      'string.empty': 'ID sản phẩm không được để trống'
+      'string.empty': 'product_id không được để trống',
+      'any.required': 'Thiếu product_id',
     }),
   selected_variant: variantSchema.required().messages({
-    'any.required': 'Thông tin variant sản phẩm là bắt buộc'
+    'any.required': 'Thiếu thông tin biến thể sản phẩm',
+    'object.base': 'selected_variant phải là object',
   }),
   quantity: Joi.number()
     .integer()
     .min(1)
-    .max(999)
+    .max(10)
     .required()
     .messages({
-      'number.base': 'Số lượng phải là số nguyên',
-      'number.min': 'Số lượng phải ít nhất là 1',
-      'number.max': 'Số lượng không được vượt quá 999',
-      'any.required': 'Số lượng là bắt buộc'
-    })
+      'number.base': 'Số lượng phải là số',
+      'number.integer': 'Số lượng phải là số nguyên',
+      'number.min': 'Số lượng tối thiểu là 1',
+      'number.max': 'Số lượng tối đa là 10',
+      'any.required': 'Thiếu số lượng sản phẩm',
+    }),
 });
-
 // Validation cho cập nhật số lượng sản phẩm
 export const updateQuantitySchema = Joi.object({
   product_id: Joi.string()
-    .custom(objectIdValidator, 'ObjectId validation')
+    .custom(objectIdValidator, "ObjectId validation")
     .required()
     .messages({
-      'any.required': 'ID sản phẩm là bắt buộc',
-      'any.invalid': 'ID sản phẩm không hợp lệ',
-      'string.empty': 'ID sản phẩm không được để trống'
+      "any.required": "ID sản phẩm là bắt buộc",
+      "string.empty": "ID sản phẩm không được để trống",
+      "any.invalid": "ID sản phẩm không hợp lệ",
     }),
-  selected_variant: Joi.object({
-    color: Joi.string().trim().max(50).required().messages({
-      'string.empty': 'Màu sắc không được để trống',
-      'string.max': 'Màu sắc không được vượt quá 50 ký tự',
-      'any.required': 'Màu sắc là bắt buộc'
-    }),
-    size: Joi.string().trim().max(20).required().messages({
-      'string.empty': 'Kích cỡ không được để trống',
-      'string.max': 'Kích cỡ không được vượt quá 20 ký tự',
-      'any.required': 'Kích cỡ là bắt buộc'
-    })
-  }).required().messages({
-    'any.required': 'Thông tin variant sản phẩm là bắt buộc'
+  selected_variant: variantSchema.required().messages({
+    "any.required": "Thông tin variant sản phẩm là bắt buộc",
+    "object.base": "selected_variant phải là object",
   }),
   quantity: Joi.number()
     .integer()
@@ -104,11 +91,11 @@ export const updateQuantitySchema = Joi.object({
     .max(999)
     .required()
     .messages({
-      'number.base': 'Số lượng phải là số nguyên',
-      'number.min': 'Số lượng không được âm (0 để xóa sản phẩm)',
-      'number.max': 'Số lượng không được vượt quá 999',
-      'any.required': 'Số lượng là bắt buộc'
-    })
+      "number.base": "Số lượng phải là số nguyên",
+      "number.min": "Số lượng không được âm (0 để xóa sản phẩm)",
+      "number.max": "Số lượng không được vượt quá 999",
+      "any.required": "Số lượng là bắt buộc",
+    }),
 });
 
 // Validation cho xóa sản phẩm khỏi giỏ hàng
@@ -118,23 +105,31 @@ export const removeItemSchema = Joi.object({
     .required()
     .messages({
       'any.required': 'ID sản phẩm là bắt buộc',
+      'string.empty': 'ID sản phẩm không được để trống',
       'any.invalid': 'ID sản phẩm không hợp lệ',
-      'string.empty': 'ID sản phẩm không được để trống'
     }),
   selected_variant: Joi.object({
-    color: Joi.string().trim().max(50).required().messages({
-      'string.empty': 'Màu sắc không được để trống',
-      'string.max': 'Màu sắc không được vượt quá 50 ký tự',
-      'any.required': 'Màu sắc là bắt buộc'
+    color: Joi.object({
+      name: Joi.string().trim().max(50).required().messages({
+        'string.empty': 'Tên màu không được để trống',
+        'string.max': 'Tên màu không được vượt quá 50 ký tự',
+        'any.required': 'Tên màu là bắt buộc',
+      }),
+      hex: Joi.string().trim().required().messages({
+        'string.empty': 'Mã màu không được để trống',
+        'any.required': 'Mã màu là bắt buộc',
+      }),
+    }).required().messages({
+      'any.required': 'Thông tin màu sắc là bắt buộc',
     }),
     size: Joi.string().trim().max(20).required().messages({
       'string.empty': 'Kích cỡ không được để trống',
       'string.max': 'Kích cỡ không được vượt quá 20 ký tự',
-      'any.required': 'Kích cỡ là bắt buộc'
-    })
+      'any.required': 'Kích cỡ là bắt buộc',
+    }),
   }).required().messages({
-    'any.required': 'Thông tin variant sản phẩm là bắt buộc'
-  })
+    'any.required': 'Thông tin variant sản phẩm là bắt buộc',
+  }),
 });
 
 // Validation cho áp dụng mã giảm giá
@@ -180,6 +175,7 @@ export const saveForLaterSchema = Joi.object({
     'any.required': 'Thông tin variant sản phẩm là bắt buộc'
   })
 });
+
 
 // Validation cho move to cart
 export const moveToCartSchema = saveForLaterSchema;

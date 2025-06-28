@@ -1,42 +1,141 @@
 import cartService from "../services/cart.service.js";
 import responseUtil from "../utils/response.util.js";
 import logger from "../config/logger.config.js";
-
+import couponService from "../services/coupon.service.js";
+// import { bulkUpdateItems } from '../services/cart.service.js';
 /**
  * Cart Controller - Xử lý các HTTP requests liên quan đến giỏ hàng
  */
-
-// Lấy giỏ hàng của user hiện tại
 const getCart = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { include_saved = true } = req.query;
+    const {
+      include_saved = true,
+      page = 1,
+      limit = 100,
+      coupon_code,
+    } = req.query;
 
-    logger.info(`[CART] GET /carts - User: ${userId}, include_saved: ${include_saved}`);
+    logger.info(
+      `[CART] GET /carts - User: ${userId}, include_saved: ${include_saved}`
+    );
 
-    const cart = await cartService.getCart(userId, include_saved === "true");
+    const cartData = await cartService.getCart(
+      userId,
+      include_saved === "true" || include_saved === true,
+      parseInt(page, 10),
+      parseInt(limit, 10)
+    );
 
-    return responseUtil.successResponse(res, cart, "Lấy giỏ hàng thành công");
+    if (coupon_code) {
+      try {
+        const couponResult = await couponService.validateCoupon(
+          coupon_code,
+          userId,
+          cartData.subtotal,
+          cartData.items.map((i) => i.product?._id)
+        );
+
+        cartData.applied_coupon = couponResult.coupon;
+        cartData.discountAmount = couponResult.discountAmount;
+        cartData.finalTotal = couponResult.finalAmount;
+
+        await cartService.saveCartCoupon(
+          userId,
+          couponResult.coupon,
+          couponResult.discountAmount,
+          couponResult.finalAmount
+        );
+      } catch (couponErr) {
+        logger.warn(
+          `[CART] Invalid coupon: ${couponErr.message}`
+        );
+        cartData.applied_coupon_error = couponErr.message;
+      }
+    }
+
+    return responseUtil.successResponse(
+      res,
+      cartData,
+      "Lấy giỏ hàng thành công"
+    );
   } catch (error) {
     logger.error(`[CART] GET /carts - Error: ${error.message}`, {
       stack: error.stack,
       userId: req.user?._id,
     });
-    return responseUtil.errorResponse(res, null, error.message, error.statusCode || 500);
+    return responseUtil.errorResponse(
+      res,
+      null,
+      error.message,
+      error.statusCode || 500
+    );
   }
 };
 
 // Thêm sản phẩm vào giỏ hàng
-const addItem = async (req, res) => {
+const MAX_QUANTITY_PER_ITEM = 10;
+
+export const addItem = async (req, res) => {
   try {
     const userId = req.user._id;
     const { product_id, selected_variant, quantity } = req.body;
 
-    logger.info(`[CART] POST /carts/items - User: ${userId}, Product: ${product_id}`);
+    // Validate product_id
+    if (!product_id) {
+      return responseUtil.badRequestResponse(
+        res,
+        null,
+        "Thiếu product_id"
+      );
+    }
 
-    const cart = await cartService.addItem(userId, product_id, selected_variant, quantity);
+    // Validate variant
+    if (!selected_variant || !selected_variant.color || !selected_variant.size) {
+      return responseUtil.badRequestResponse(
+        res,
+        null,
+        "Thiếu thông tin biến thể sản phẩm (color, size)"
+      );
+    }
 
-    return responseUtil.createdResponse(res, cart, "Thêm sản phẩm vào giỏ hàng thành công");
+    // Validate quantity
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      return responseUtil.badRequestResponse(
+        res,
+        null,
+        "Số lượng phải là số nguyên dương"
+      );
+    }
+
+    if (quantity > MAX_QUANTITY_PER_ITEM) {
+      return responseUtil.badRequestResponse(
+        res,
+        null,
+        `Bạn chỉ có thể mua tối đa ${MAX_QUANTITY_PER_ITEM} sản phẩm mỗi loại`
+      );
+    }
+
+    logger.info(
+      `[CART] POST /carts/items - User: ${userId}, Product: ${product_id}, Variant: ${selected_variant.color}-${selected_variant.size}, Quantity: ${quantity}`
+    );
+
+    // Gọi service
+    await cartService.addItem(
+      userId,
+      product_id,
+      selected_variant,
+      quantity
+    );
+
+    // Sau khi thêm → trả về giỏ hàng mới nhất
+    const updatedCart = await cartService.getCart(userId, true);
+
+    return responseUtil.createdResponse(
+      res,
+      updatedCart,
+      "Thêm sản phẩm vào giỏ hàng thành công"
+    );
   } catch (error) {
     logger.error(`[CART] POST /carts/items - Error: ${error.message}`, {
       stack: error.stack,
@@ -44,29 +143,61 @@ const addItem = async (req, res) => {
       body: req.body,
     });
 
-    // Xử lý các loại lỗi cụ thể
     if (error.message.includes("không tồn tại")) {
       return responseUtil.notFoundResponse(res, null, error.message);
     }
+
     if (error.message.includes("trong kho")) {
       return responseUtil.badRequestResponse(res, null, error.message);
     }
 
-    return responseUtil.errorResponse(res, null, error.message, error.statusCode || 500);
+    if (error.message.includes("tối đa")) {
+      return responseUtil.badRequestResponse(res, null, error.message);
+    }
+
+    return responseUtil.errorResponse(
+      res,
+      null,
+      error.message,
+      error.statusCode || 500
+    );
   }
 };
-
 // Cập nhật số lượng sản phẩm trong giỏ hàng
 const updateItemQuantity = async (req, res) => {
   try {
     const userId = req.user._id;
     const { product_id, selected_variant, quantity } = req.body;
 
-    logger.info(`[CART] PUT /carts/items - User: ${userId}, Product: ${product_id}, Quantity: ${quantity}`);
+    logger.info(
+      `[CART] PUT /carts/items - User: ${userId}, Product: ${product_id}, Variant: ${
+        JSON.stringify(selected_variant)
+      }, Quantity: ${quantity}`
+    );
 
-    const cart = await cartService.updateItemQuantity(userId, product_id, selected_variant, quantity);
+    // Validate quantity
+    if (!Number.isInteger(quantity) || quantity < 0) {
+      return responseUtil.badRequestResponse(
+        res,
+        null,
+        "Số lượng phải là số nguyên không âm"
+      );
+    }
 
-    return responseUtil.successResponse(res, cart, "Cập nhật số lượng sản phẩm thành công");
+    const cart = await cartService.updateItemQuantity(
+      userId,
+      product_id,
+      selected_variant,
+      quantity
+    );
+
+    return responseUtil.successResponse(
+      res,
+      cart,
+      quantity === 0
+        ? "Xóa sản phẩm khỏi giỏ hàng thành công"
+        : "Cập nhật số lượng sản phẩm thành công"
+    );
   } catch (error) {
     logger.error(`[CART] PUT /carts/items - Error: ${error.message}`, {
       stack: error.stack,
@@ -81,9 +212,16 @@ const updateItemQuantity = async (req, res) => {
       return responseUtil.badRequestResponse(res, null, error.message);
     }
 
-    return responseUtil.errorResponse(res, null, error.message, error.statusCode || 500);
+    return responseUtil.errorResponse(
+      res,
+      null,
+      error.message,
+      error.statusCode || 500
+    );
   }
 };
+
+
 
 // Xóa sản phẩm khỏi giỏ hàng
 const removeItem = async (req, res) => {
@@ -91,11 +229,21 @@ const removeItem = async (req, res) => {
     const userId = req.user._id;
     const { product_id, selected_variant } = req.body;
 
-    logger.info(`[CART] DELETE /carts/items - User: ${userId}, Product: ${product_id}`);
+    logger.info(
+      `[CART] DELETE /carts/items - User: ${userId}, Product: ${product_id}, Variant: ${selected_variant?.color?.name || selected_variant?.color}-${selected_variant?.size}`
+    );
 
-    const cart = await cartService.removeItem(userId, product_id, selected_variant);
+    const cart = await cartService.removeItem(
+      userId,
+      product_id,
+      selected_variant
+    );
 
-    return responseUtil.successResponse(res, cart, "Xóa sản phẩm khỏi giỏ hàng thành công");
+    return responseUtil.successResponse(
+      res,
+      cart,
+      "Xóa sản phẩm khỏi giỏ hàng thành công"
+    );
   } catch (error) {
     logger.error(`[CART] DELETE /carts/items - Error: ${error.message}`, {
       stack: error.stack,
@@ -107,9 +255,15 @@ const removeItem = async (req, res) => {
       return responseUtil.notFoundResponse(res, null, error.message);
     }
 
-    return responseUtil.errorResponse(res, null, error.message, error.statusCode || 500);
+    return responseUtil.errorResponse(
+      res,
+      null,
+      error.message,
+      error.statusCode || 500
+    );
   }
 };
+
 
 // Xóa toàn bộ giỏ hàng
 const clearCart = async (req, res) => {
@@ -131,32 +285,67 @@ const clearCart = async (req, res) => {
   }
 };
 
+
 // Áp dụng mã giảm giá
 const applyCoupon = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id || req.user._id;
     const { coupon_code } = req.body;
 
     logger.info(`[CART] POST /carts/coupons - User: ${userId}, Coupon: ${coupon_code}`);
 
-    const result = await cartService.applyCoupon(userId, coupon_code);
+    // Lấy giỏ hàng để tính subtotal + productIds
+    const cart = await cartService.getOrCreateCart(userId);
+    const activeItems = cart.items.filter((item) => !item.saved_for_later);
 
-    return responseUtil.successResponse(res, result, "Áp dụng mã giảm giá thành công");
+    const subtotal = activeItems.reduce(
+      (sum, item) => sum + parseFloat(item.total_price?.toString() || 0),
+      0
+    );
+
+    const productIds = activeItems.map((item) => item.product.toString());
+
+    const result = await couponService.applyCoupon(
+      coupon_code,
+      userId,
+      subtotal,
+      productIds
+    );
+
+    return responseUtil.successResponse(
+      res,
+      result,
+      "Áp dụng mã giảm giá thành công"
+    );
   } catch (error) {
-    logger.error(`[CART] POST /carts/coupons - Error: ${error.message}`, {
+    logger.error(error.message, {
       stack: error.stack,
       userId: req.user?._id,
       body: req.body,
     });
 
-    if (error.message.includes("không tồn tại") || error.message.includes("không hợp lệ") || error.message.includes("hết hạn") || error.message.includes("hết lượt")) {
+    if (
+      error.message.includes("không tồn tại") ||
+      error.message.includes("không hợp lệ") ||
+      error.message.includes("hết hạn") ||
+      error.message.includes("hết lượt")
+    ) {
       return responseUtil.badRequestResponse(res, null, error.message);
     }
 
-    return responseUtil.errorResponse(res, null, error.message, error.statusCode || 500);
+    return responseUtil.errorResponse(
+      res,
+      null,
+      error.message,
+      error.statusCode || 500
+    );
   }
 };
 
+
+
+
+// Xóa mã giảm giá
 // Xóa mã giảm giá
 const removeCoupon = async (req, res) => {
   try {
@@ -166,16 +355,26 @@ const removeCoupon = async (req, res) => {
 
     const cart = await cartService.removeCoupon(userId);
 
-    return responseUtil.successResponse(res, cart, "Xóa mã giảm giá thành công");
+    return responseUtil.successResponse(
+      res,
+      cart,
+      "Mã giảm giá đã được xóa (nếu có)"
+    );
   } catch (error) {
     logger.error(`[CART] DELETE /carts/coupons - Error: ${error.message}`, {
       stack: error.stack,
       userId: req.user?._id,
     });
 
-    return responseUtil.errorResponse(res, null, error.message, error.statusCode || 500);
+    return responseUtil.errorResponse(
+      res,
+      null,
+      error.message,
+      error.statusCode || 500
+    );
   }
 };
+
 
 // Lưu sản phẩm để mua sau
 const saveForLater = async (req, res) => {
@@ -185,9 +384,17 @@ const saveForLater = async (req, res) => {
 
     logger.info(`[CART] POST /carts/items/save-later - User: ${userId}, Product: ${product_id}`);
 
-    const cart = await cartService.saveForLater(userId, product_id, selected_variant);
+    const cart = await cartService.saveForLater(
+      userId,
+      product_id,
+      selected_variant
+    );
 
-    return responseUtil.successResponse(res, cart, "Lưu sản phẩm để mua sau thành công");
+    return responseUtil.successResponse(
+      res,
+      cart,
+      "Lưu sản phẩm để mua sau thành công"
+    );
   } catch (error) {
     logger.error(`[CART] POST /carts/items/save-later - Error: ${error.message}`, {
       stack: error.stack,
@@ -199,9 +406,16 @@ const saveForLater = async (req, res) => {
       return responseUtil.notFoundResponse(res, null, error.message);
     }
 
-    return responseUtil.errorResponse(res, null, error.message, error.statusCode || 500);
+    return responseUtil.errorResponse(
+      res,
+      null,
+      error.message,
+      error.statusCode || 500
+    );
   }
 };
+
+
 
 // Chuyển sản phẩm từ "save for later" về giỏ hàng
 const moveToCart = async (req, res) => {
@@ -233,30 +447,51 @@ const moveToCart = async (req, res) => {
 };
 
 // Bulk update nhiều items
-const bulkUpdateItems = async (req, res) => {
+// Bulk update nhiều items
+const bulkUpdateItemsController = async (req, res) => {
   try {
-    const userId = req.user._id;
-    const { items } = req.body;
+    const userId = req.user._id?.toString();
 
-    logger.info(`[CART] PUT /carts/bulk-update - User: ${userId}, Items: ${items.length}`);
+    logger.info("[BULK UPDATE] Bắt đầu xử lý bulk update...");
+    logger.info("[BULK UPDATE] req.body =", JSON.stringify(req.body));
 
-    const cart = await cartService.bulkUpdateItems(userId, items);
+    const updates = req.body?.updates || req.body?.items;
 
-    return responseUtil.successResponse(res, cart, "Cập nhật nhiều sản phẩm thành công");
+    if (!Array.isArray(updates)) {
+      logger.warn("[BULK UPDATE] Không tìm thấy mảng updates hoặc items trong payload");
+      return responseUtil.badRequestResponse(
+        res,
+        null,
+        "Dữ liệu bulk update không hợp lệ. 'items' hoặc 'updates' phải là array."
+      );
+    }
+
+    logger.info("[BULK UPDATE] Số lượng items:", updates.length);
+    logger.info("[BULK UPDATE] Dữ liệu updates:", JSON.stringify(updates, null, 2));
+
+    const result = await cartService.bulkUpdateItems(userId, updates);
+
+    return responseUtil.successResponse(
+      res,
+      result,
+      "Bulk update giỏ hàng thành công"
+    );
   } catch (error) {
-    logger.error(`[CART] PUT /carts/bulk-update - Error: ${error.message}`, {
+    logger.error(`[CART] Bulk update error: ${error.message}`, {
       stack: error.stack,
       userId: req.user?._id,
       body: req.body,
     });
 
-    if (error.message.includes("trong kho")) {
-      return responseUtil.badRequestResponse(res, null, error.message);
-    }
-
-    return responseUtil.errorResponse(res, null, error.message, error.statusCode || 500);
+    return responseUtil.errorResponse(
+      res,
+      null,
+      error.message,
+      error.statusCode || 500
+    );
   }
 };
+
 
 // Lấy tóm tắt giỏ hàng
 const getCartSummary = async (req, res) => {
@@ -332,7 +567,7 @@ export default {
   removeCoupon,
   saveForLater,
   moveToCart,
-  bulkUpdateItems,
+  bulkUpdateItemsController,
   getCartSummary,
   syncCartPrices,
   validateCartForCheckout,
