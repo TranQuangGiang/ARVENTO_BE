@@ -5,16 +5,30 @@ import mongoosePaginate from "mongoose-paginate-v2";
 const CartVariantSchema = new mongoose.Schema(
   {
     color: {
-      type: String,
-      required: [true, "Màu sắc là bắt buộc"],
-      trim: true,
-      maxLength: [50, "Màu sắc không được vượt quá 50 ký tự"],
+      name: {
+        type: String,
+        required: [true, "Tên màu sắc là bắt buộc"],
+        trim: true,
+        maxLength: [50, "Tên màu sắc không được vượt quá 50 ký tự"],
+      },
+      hex: {
+        type: String,
+        trim: true,
+        maxLength: [20, "Mã màu không được vượt quá 20 ký tự"],
+        default: null,
+      },
     },
     size: {
       type: String,
       required: [true, "Kích cỡ là bắt buộc"],
       trim: true,
       maxLength: [20, "Kích cỡ không được vượt quá 20 ký tự"],
+    },
+    sku: {
+      type: String,
+      required: [true, "SKU là bắt buộc"],
+      trim: true,
+      maxLength: [100, "SKU không được vượt quá 100 ký tự"],
     },
     price: {
       type: mongoose.Types.Decimal128,
@@ -26,6 +40,19 @@ const CartVariantSchema = new mongoose.Schema(
       required: [true, "Số lượng tồn kho là bắt buộc"],
       min: [0, "Số lượng tồn kho không được âm"],
       default: 0,
+    },
+    image: {
+      url: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      alt: {
+        type: String,
+        trim: true,
+        maxLength: [100, "Alt text không được vượt quá 100 ký tự"],
+        default: "",
+      },
     },
   },
   { _id: false }
@@ -114,7 +141,7 @@ const CartSchema = new mongoose.Schema(
       },
       discount_type: {
         type: String,
-        enum: ["percentage", "fixed"],
+        enum: ["percentage", "fixed", "fixed_amount"],
         default: "percentage",
       },
     },
@@ -129,6 +156,10 @@ const CartSchema = new mongoose.Schema(
         // Cart expires after 30 days of inactivity
         return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       },
+    },
+    final_total: {
+      type: Number,
+      default: 0,
     },
   },
   {
@@ -178,80 +209,120 @@ CartSchema.index({ updated_at: 1 });
 
 // Pre-save middleware để tự động cập nhật totals
 CartSchema.pre("save", function (next) {
-  this.updated_at = new Date();
-  this.expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Reset expiry
+  try {
+    this.updated_at = new Date();
+    this.expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Reset expiry
 
-  // Tính toán subtotal từ các items không phải "saved for later"
-  const activeItems = this.items.filter((item) => !item.saved_for_later);
-  this.subtotal = activeItems.reduce((sum, item) => {
-    const itemTotal = parseFloat(item.total_price?.toString() || 0);
-    return sum + itemTotal;
-  }, 0);
+    // Tính toán subtotal từ các items không phải "saved for later"
+    const activeItems = this.items.filter((item) => !item.saved_for_later);
+    const subtotalValue = activeItems.reduce((sum, item) => {
+      const itemTotal = parseFloat(item.total_price?.toString() || "0");
+      return sum + itemTotal;
+    }, 0);
 
-  // Tính total sau khi áp dụng coupon
-  let total = this.subtotal;
-  if (this.applied_coupon?.discount_amount) {
-    const discountAmount = parseFloat(this.applied_coupon.discount_amount.toString());
-    total = Math.max(0, total - discountAmount);
+    // Đảm bảo subtotal là Decimal128
+    this.subtotal = mongoose.Types.Decimal128.fromString(subtotalValue.toString());
+
+    // Tính total sau khi áp dụng coupon
+    let totalValue = subtotalValue;
+    if (this.applied_coupon?.discount_amount) {
+      const discountAmount = parseFloat(this.applied_coupon.discount_amount.toString() || "0");
+      totalValue = Math.max(0, totalValue - discountAmount);
+    }
+
+    // Đảm bảo total là Decimal128
+    this.total = mongoose.Types.Decimal128.fromString(totalValue.toString());
+
+    next();
+  } catch (error) {
+    next(error);
   }
-  this.total = total;
-
-  next();
 });
 
 // Instance methods
 CartSchema.methods.addItem = function (productId, variant, quantity, unitPrice) {
-  const existingItemIndex = this.items.findIndex((item) => item.product.toString() === productId.toString() && item.selected_variant.color === variant.color && item.selected_variant.size === variant.size && !item.saved_for_later);
+  try {
+    // Validate inputs
+    if (!productId || !variant || !quantity || !unitPrice) {
+      throw new Error("Missing required parameters for addItem");
+    }
 
-  if (existingItemIndex > -1) {
-    // Update existing item
-    this.items[existingItemIndex].quantity += quantity;
-    this.items[existingItemIndex].total_price = this.items[existingItemIndex].quantity * unitPrice;
-    this.items[existingItemIndex].updated_at = new Date();
-  } else {
-    // Add new item
-    this.items.push({
-      product: productId,
-      selected_variant: variant,
-      quantity: quantity,
-      unit_price: unitPrice,
-      total_price: quantity * unitPrice,
-      saved_for_later: false,
-      added_at: new Date(),
-      updated_at: new Date(),
-    });
+    // Tìm item tương tự (cùng product, color, size và không phải saved_for_later)
+    const existingItemIndex = this.items.findIndex((item) => item.product.toString() === productId.toString() && item.selected_variant.color.name === variant.color.name && item.selected_variant.size === variant.size && !item.saved_for_later);
+
+    if (existingItemIndex > -1) {
+      // Update existing item
+      this.items[existingItemIndex].quantity += quantity;
+      const newTotalPrice = this.items[existingItemIndex].quantity * parseFloat(unitPrice);
+      this.items[existingItemIndex].total_price = mongoose.Types.Decimal128.fromString(newTotalPrice.toString());
+      this.items[existingItemIndex].updated_at = new Date();
+    } else {
+      // Add new item
+      const totalPrice = quantity * parseFloat(unitPrice);
+      this.items.push({
+        product: productId,
+        selected_variant: variant,
+        quantity: quantity,
+        unit_price: mongoose.Types.Decimal128.fromString(unitPrice.toString()),
+        total_price: mongoose.Types.Decimal128.fromString(totalPrice.toString()),
+        saved_for_later: false,
+        added_at: new Date(),
+        updated_at: new Date(),
+      });
+    }
+
+    return this.save();
+  } catch (error) {
+    throw new Error(`Failed to add item to cart: ${error.message}`);
   }
-
-  return this.save();
 };
 
 CartSchema.methods.updateItemQuantity = function (productId, variant, newQuantity) {
-  const itemIndex = this.items.findIndex((item) => item.product.toString() === productId.toString() && item.selected_variant.color === variant.color && item.selected_variant.size === variant.size && !item.saved_for_later);
+  try {
+    // Validate inputs
+    if (!productId || !variant || newQuantity === undefined || newQuantity === null) {
+      throw new Error("Missing required parameters for updateItemQuantity");
+    }
 
-  if (itemIndex === -1) {
-    throw new Error("Sản phẩm không tồn tại trong giỏ hàng");
+    const itemIndex = this.items.findIndex((item) => item.product.toString() === productId.toString() && item.selected_variant.color.name === variant.color.name && item.selected_variant.size === variant.size && !item.saved_for_later);
+
+    if (itemIndex === -1) {
+      throw new Error("Sản phẩm không tồn tại trong giỏ hàng");
+    }
+
+    if (newQuantity <= 0) {
+      this.items.splice(itemIndex, 1);
+    } else {
+      this.items[itemIndex].quantity = newQuantity;
+      const newTotalPrice = newQuantity * parseFloat(this.items[itemIndex].unit_price.toString());
+      this.items[itemIndex].total_price = mongoose.Types.Decimal128.fromString(newTotalPrice.toString());
+      this.items[itemIndex].updated_at = new Date();
+    }
+
+    return this.save();
+  } catch (error) {
+    throw new Error(`Failed to update item quantity: ${error.message}`);
   }
-
-  if (newQuantity <= 0) {
-    this.items.splice(itemIndex, 1);
-  } else {
-    this.items[itemIndex].quantity = newQuantity;
-    this.items[itemIndex].total_price = newQuantity * parseFloat(this.items[itemIndex].unit_price.toString());
-    this.items[itemIndex].updated_at = new Date();
-  }
-
-  return this.save();
 };
 
 CartSchema.methods.removeItem = function (productId, variant) {
-  const itemIndex = this.items.findIndex((item) => item.product.toString() === productId.toString() && item.selected_variant.color === variant.color && item.selected_variant.size === variant.size);
+  try {
+    // Validate inputs
+    if (!productId || !variant) {
+      throw new Error("Missing required parameters for removeItem");
+    }
 
-  if (itemIndex === -1) {
-    throw new Error("Sản phẩm không tồn tại trong giỏ hàng");
+    const itemIndex = this.items.findIndex((item) => item.product.toString() === productId.toString() && item.selected_variant.color.name === variant.color.name && item.selected_variant.size === variant.size);
+
+    if (itemIndex === -1) {
+      throw new Error("Sản phẩm không tồn tại trong giỏ hàng");
+    }
+
+    this.items.splice(itemIndex, 1);
+    return this.save();
+  } catch (error) {
+    throw new Error(`Failed to remove item: ${error.message}`);
   }
-
-  this.items.splice(itemIndex, 1);
-  return this.save();
 };
 
 CartSchema.methods.clearCart = function () {
@@ -261,41 +332,69 @@ CartSchema.methods.clearCart = function () {
 };
 
 CartSchema.methods.saveForLater = function (productId, variant) {
-  const itemIndex = this.items.findIndex((item) => item.product.toString() === productId.toString() && item.selected_variant.color === variant.color && item.selected_variant.size === variant.size && !item.saved_for_later);
+  try {
+    if (!productId || !variant) {
+      throw new Error("Missing required parameters for saveForLater");
+    }
 
-  if (itemIndex === -1) {
-    throw new Error("Sản phẩm không tồn tại trong giỏ hàng");
+    const itemIndex = this.items.findIndex((item) => item.product.toString() === productId.toString() && item.selected_variant.color.name === variant.color.name && item.selected_variant.size === variant.size && !item.saved_for_later);
+
+    if (itemIndex === -1) {
+      throw new Error("Sản phẩm không tồn tại trong giỏ hàng");
+    }
+
+    this.items[itemIndex].saved_for_later = true;
+    this.items[itemIndex].updated_at = new Date();
+    return this.save();
+  } catch (error) {
+    throw new Error(`Failed to save for later: ${error.message}`);
   }
-
-  this.items[itemIndex].saved_for_later = true;
-  this.items[itemIndex].updated_at = new Date();
-  return this.save();
 };
 
 CartSchema.methods.moveToCart = function (productId, variant) {
-  const itemIndex = this.items.findIndex((item) => item.product.toString() === productId.toString() && item.selected_variant.color === variant.color && item.selected_variant.size === variant.size && item.saved_for_later);
+  try {
+    if (!productId || !variant) {
+      throw new Error("Missing required parameters for moveToCart");
+    }
 
-  if (itemIndex === -1) {
-    throw new Error("Sản phẩm không tồn tại trong danh sách lưu sau");
+    const itemIndex = this.items.findIndex((item) => item.product.toString() === productId.toString() && item.selected_variant.color.name === variant.color.name && item.selected_variant.size === variant.size && item.saved_for_later);
+
+    if (itemIndex === -1) {
+      throw new Error("Sản phẩm không tồn tại trong danh sách lưu sau");
+    }
+
+    this.items[itemIndex].saved_for_later = false;
+    this.items[itemIndex].updated_at = new Date();
+    return this.save();
+  } catch (error) {
+    throw new Error(`Failed to move to cart: ${error.message}`);
   }
-
-  this.items[itemIndex].saved_for_later = false;
-  this.items[itemIndex].updated_at = new Date();
-  return this.save();
 };
 
 CartSchema.methods.applyCoupon = function (couponCode, discountAmount, discountType = "percentage") {
-  this.applied_coupon = {
-    code: couponCode.toUpperCase(),
-    discount_amount: discountAmount,
-    discount_type: discountType,
-  };
-  return this.save();
+  try {
+    if (!couponCode || discountAmount === undefined || discountAmount === null) {
+      throw new Error("Missing required parameters for applyCoupon");
+    }
+
+    this.applied_coupon = {
+      code: couponCode.toUpperCase(),
+      discount_amount: mongoose.Types.Decimal128.fromString(discountAmount.toString()),
+      discount_type: discountType,
+    };
+    return this.save();
+  } catch (error) {
+    throw new Error(`Failed to apply coupon: ${error.message}`);
+  }
 };
 
 CartSchema.methods.removeCoupon = function () {
-  this.applied_coupon = {};
-  return this.save();
+  try {
+    this.applied_coupon = {};
+    return this.save();
+  } catch (error) {
+    throw new Error(`Failed to remove coupon: ${error.message}`);
+  }
 };
 
 // Static methods

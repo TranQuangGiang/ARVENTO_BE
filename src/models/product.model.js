@@ -110,6 +110,13 @@ productSchema.pre('save', function(next) {
     next(error);
   }
 });
-
+// Khi Product bị xóa, tự xóa các item trong giỏ hàng
+productSchema.pre('remove', async function (next) {
+  await Cart.updateMany(
+    {},
+    { $pull: { items: { product: this._id } } }
+  );
+  next();
+});
 const Product = mongoose.model('Product', productSchema);
 export default Product;

@@ -67,11 +67,42 @@ const validateCoupon = async (req, res) => {
 // Áp dụng mã giảm giá
 const applyCoupon = async (req, res) => {
   try {
-    const { code, userId } = req.body;
-    const coupon = await couponService.applyCoupon(code, userId);
-    responseUtil.successResponse(res, coupon, 'Áp dụng mã giảm giá thành công');
+    const userId = req.user._id;
+    const { coupon_code } = req.body;
+
+    logger.info(
+      `[CART] POST /carts/coupons - User: ${userId}, Coupon: ${coupon_code}`
+    );
+
+    const coupon = await couponService.applyCoupon(coupon_code, userId);
+
+    return responseUtil.successResponse(
+      res,
+      coupon,
+      "Áp dụng mã giảm giá thành công"
+    );
   } catch (error) {
-    responseUtil.errorResponse(res, null, error.message, 400);
+    logger.error(`[CART] POST /carts/coupons - Error: ${error.message}`, {
+      stack: error.stack,
+      userId: req.user?._id,
+      body: req.body,
+    });
+
+    if (
+      error.message.includes("không tồn tại") ||
+      error.message.includes("không hợp lệ") ||
+      error.message.includes("hết hạn") ||
+      error.message.includes("hết lượt")
+    ) {
+      return responseUtil.badRequestResponse(res, null, error.message);
+    }
+
+    return responseUtil.errorResponse(
+      res,
+      null,
+      error.message,
+      error.statusCode || 500
+    );
   }
 };
 

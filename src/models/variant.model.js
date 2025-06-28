@@ -99,5 +99,21 @@ variantSchema.pre('remove', async function (next) {
   next();
 });
 
+// Khi Variant bị xóa, xóa các item chứa variant đó trong giỏ hàng
+variantSchema.pre('remove', async function (next) {
+  await Cart.updateMany(
+    {},
+    {
+      $pull: {
+        items: {
+          'selected_variant.color': this.color.name,
+          'selected_variant.size': this.size,
+          product: this.product_id,
+        },
+      },
+    }
+  );
+  next();
+});
 const Variant = mongoose.model('Variant', variantSchema);
 export default Variant;
