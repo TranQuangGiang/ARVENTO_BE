@@ -1,6 +1,7 @@
 import express from "express";
 import orderController from "../controllers/order.controller.js";
 import { authMiddleware } from "../middlewares/index.js";
+import Roles from "../constants/role.enum.js";
 
 const router = express.Router();
 
@@ -34,6 +35,79 @@ const router = express.Router();
  *       201: { description: Tạo đơn hàng thành công }
  */
 router.post("/", authMiddleware.authenticateToken, orderController.createOrder);
+
+/**
+ * @swagger
+ * /orders/stats:
+ *   get:
+ *     summary: Thống kê tổng quan đơn hàng (admin)
+ *     tags: [Order]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200: { description: Lấy thống kê thành công }
+ */
+router.get("/stats", authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), orderController.getOrderStats);
+
+/**
+ * @swagger
+ * /orders/revenue:
+ *   get:
+ *     summary: Doanh thu theo ngày/tháng (admin)
+ *     tags: [Order]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: from
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: to
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: groupBy
+ *         schema: { type: string, enum: [day, month] }
+ *     responses:
+ *       200: { description: Lấy doanh thu thành công }
+ */
+router.get("/revenue", authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), orderController.getRevenueByDate);
+
+/**
+ * @swagger
+ * /orders/recent:
+ *   get:
+ *     summary: Đơn hàng mới nhất (admin)
+ *     tags: [Order]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer }
+ *     responses:
+ *       200: { description: Lấy đơn hàng mới nhất thành công }
+ */
+router.get("/recent", authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), orderController.getRecentOrders);
+
+/**
+ * @swagger
+ * /orders/export:
+ *   get:
+ *     summary: Xuất đơn hàng ra file (admin)
+ *     tags: [Order]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: from
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: to
+ *         schema: { type: string, format: date }
+ *     responses:
+ *       200: { description: Xuất file thành công }
+ */
+router.get("/export", authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), orderController.exportOrders);
 
 /**
  * @swagger
@@ -117,39 +191,6 @@ router.patch("/:id/cancel", authMiddleware.authenticateToken, orderController.ca
  *     responses:
  *       200: { description: Lấy danh sách đơn hàng thành công }
  */
-router.get("/", authMiddleware.authenticateToken, orderController.getAllOrders);
-
-/**
- * @swagger
- * /orders:
- *   get:
- *     summary: Lấy tất cả đơn hàng (admin)
- *     tags: [Order]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: status
- *         schema: { type: string }
- *       - in: query
- *         name: user
- *         schema: { type: string }
- *       - in: query
- *         name: dateFrom
- *         schema: { type: string, format: date }
- *       - in: query
- *         name: dateTo
- *         schema: { type: string, format: date }
- *       - in: query
- *         name: page
- *         schema: { type: integer }
- *       - in: query
- *         name: limit
- *         schema: { type: integer }
- *     responses:
- *       200: { description: Lấy danh sách đơn hàng thành công }
- */
-router.get("/", authMiddleware.authenticateToken, orderController.getAllOrders);
 
 /**
  * @swagger
@@ -177,7 +218,7 @@ router.get("/", authMiddleware.authenticateToken, orderController.getAllOrders);
  *       403: { description: Không có quyền }
  *       404: { description: Không tìm thấy đơn hàng }
  */
-router.patch("/:id/status", authMiddleware.authenticateToken, orderController.updateOrderStatus);
+router.patch("/:id/status", authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), orderController.updateOrderStatus);
 
 /**
  * @swagger
@@ -197,76 +238,8 @@ router.patch("/:id/status", authMiddleware.authenticateToken, orderController.up
  *       404: { description: Không tìm thấy đơn hàng }
  */
 router.get("/:id/timeline", authMiddleware.authenticateToken, orderController.getOrderTimeline);
-/**
- * @swagger
- * /orders/stats:
- *   get:
- *     summary: Thống kê tổng quan đơn hàng (admin)
- *     tags: [Order]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200: { description: Lấy thống kê thành công }
- */
-router.get("/stats", authMiddleware.authenticateToken, orderController.getOrderStats);
 
-/**
- * @swagger
- * /orders/revenue:
- *   get:
- *     summary: Doanh thu theo ngày/tháng (admin)
- *     tags: [Order]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: from
- *         schema: { type: string, format: date }
- *       - in: query
- *         name: to
- *         schema: { type: string, format: date }
- *       - in: query
- *         name: groupBy
- *         schema: { type: string, enum: [day, month] }
- *     responses:
- *       200: { description: Lấy doanh thu thành công }
- */
-router.get("/revenue", authMiddleware.authenticateToken, orderController.getRevenueByDate);
+// Admin route - phải đặt cuối cùng để tránh conflict với các routes khác
+router.get("/", authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), orderController.getAllOrders);
 
-/**
- * @swagger
- * /orders/recent:
- *   get:
- *     summary: Đơn hàng mới nhất (admin)
- *     tags: [Order]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: limit
- *         schema: { type: integer }
- *     responses:
- *       200: { description: Lấy đơn hàng mới nhất thành công }
- */
-router.get("/recent", authMiddleware.authenticateToken, orderController.getRecentOrders);
-
-/**
- * @swagger
- * /orders/export:
- *   get:
- *     summary: Xuất đơn hàng ra file (admin)
- *     tags: [Order]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: from
- *         schema: { type: string, format: date }
- *       - in: query
- *         name: to
- *         schema: { type: string, format: date }
- *     responses:
- *       200: { description: Xuất file thành công }
- */
-router.get("/export", authMiddleware.authenticateToken, orderController.exportOrders);
 export default router;
