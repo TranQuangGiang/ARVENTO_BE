@@ -178,9 +178,11 @@ const updateProduct = async (id, data) => {
     if (data.sale_price && data.original_price && data.sale_price > data.original_price) {
       throw new Error('Giá khuyến mãi không được lớn hơn giá gốc');
     }
-         if ('updated_at' in data) {
-  delete data.updated_at;
-}
+
+    if ('updated_at' in data) {
+      delete data.updated_at;
+    }
+
     // Validate bằng Joi nếu muốn (tuỳ chọn)
     const { error } = productValidate.update.validate(data, { abortEarly: false });
     if (error) {
@@ -195,12 +197,25 @@ const updateProduct = async (id, data) => {
       throw error;
     }
 
+    // ✅ THÊM ĐOẠN NÀY → đồng bộ giá variants
+    if (data.sale_price !== undefined) {
+      const salePriceDecimal = new mongoose.Types.Decimal128(data.sale_price.toString());
+
+      await Variant.updateMany(
+        { product_id: id },
+        { $set: { price: salePriceDecimal } }
+      );
+
+      logger.info(`Đã đồng bộ giá sale ${data.sale_price} cho toàn bộ variants của product ${id}`);
+    }
+
     return updatedProduct;
   } catch (err) {
     logger.error(`Failed to update product: ${err.message}`, { stack: err.stack });
     throw err;
   }
 };
+
 
 
 
