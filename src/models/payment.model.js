@@ -18,7 +18,7 @@ const paymentSchema = new mongoose.Schema(
     },
     method: {
       type: String,
-      enum: ["cod", "banking"],
+      enum: ["cod", "banking", "zalopay", "momo"],
       required: true,
     },
     transactionId: {
@@ -27,13 +27,36 @@ const paymentSchema = new mongoose.Schema(
     paymentUrl: {
       type: String,
     },
+    // ZaloPay specific fields
+    appTransId: {
+      type: String,
+    },
+    zpTransId: {
+      type: String,
+    },
+    // MoMo specific fields
+    requestId: {
+      type: String,
+    },
+    momoTransId: {
+      type: String,
+    },
+    // Gateway response data
+    gatewayResponse: {
+      type: Object,
+      default: {},
+    },
     paidAt: {
       type: Date,
     },
     note: {
       type: String,
     },
-    status: { type: String, enum: ["pending", "completed", "failed", "refunded", "refund_requested"], default: "pending" },
+    status: {
+      type: String,
+      enum: ["pending", "processing", "completed", "failed", "cancelled", "refunded", "refund_requested"],
+      default: "pending",
+    },
     timeline: [
       {
         status: String,
