@@ -260,4 +260,107 @@ router.delete('/admin/reviews/:reviewId',authMiddleware.authenticateToken, authM
  *         description: Thành công
  */
 router.get('/admin/reviews/dashboard',authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), reviewController.getReviewDashboard);
+/**
+ * @swagger
+ * /reviews/{id}:
+ *   get:
+ *     summary: Lấy chi tiết đánh giá theo ID
+ *     tags: [Reviews]
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         description: ID của đánh giá
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Lấy chi tiết đánh giá thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Get review detail successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     _id:
+ *                       type: string
+ *                       example: 68633dbcad87e9c50746dd82
+ *                     user_id:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                           example: 68308e47c9d3a2f04d3b7bda
+ *                         name:
+ *                           type: string
+ *                           example: uyen
+ *                         email:
+ *                           type: string
+ *                           example: nguyenvana@example.com
+ *                     product_id:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                           example: 685bc96e027e91a1bd1d49a0
+ *                         name:
+ *                           type: string
+ *                           example: Áo thun màu
+ *                     rating:
+ *                       type: integer
+ *                       example: 4
+ *                     comment:
+ *                       type: string
+ *                       example: sản phẩm như đẹp
+ *                     approved:
+ *                       type: boolean
+ *                       example: true
+ *                     hidden:
+ *                       type: boolean
+ *                       example: false
+ *                     images:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       example:
+ *                         - http://localhost:3000/uploads/reviews/review-1751334332596-0.jpg
+ *                         - http://localhost:3000/uploads/reviews/review-1751334332598-1.jpg
+ *                     created_at:
+ *                       type: string
+ *                       format: date-time
+ *                       example: 2025-07-01T01:45:32.763Z
+ *                     updated_at:
+ *                       type: string
+ *                       format: date-time
+ *                       example: 2025-07-01T01:45:32.764Z
+ *                     __v:
+ *                       type: integer
+ *                       example: 0
+ *       404:
+ *         description: Không tìm thấy đánh giá
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Review not found
+ *                 data:
+ *                   type: string
+ *                   example: null
+ */
+
+router.get('/:id', reviewController.getReviewDetail);
 export default router;
