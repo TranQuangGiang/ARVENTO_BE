@@ -129,3 +129,19 @@ export const getReviewDashboard = async (req, res) => {
     return response.errorResponse(res, null, err.message);
   }
 };
+export const getReviewDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const review = await reviewService.getReviewById(id);
+
+    if (!review) {
+      return response.notFoundResponse(res, null, 'Review not found');
+    }
+
+    return response.successResponse(res, review, 'Get review detail successfully');
+  } catch (error) {
+    console.error(error);
+    return response.errorResponse(res, null, 'Internal server error');
+  }
+};
