@@ -221,6 +221,13 @@ const getDashboardStats = async () => {
 
   return { monthly, byRating };
 };
+const getReviewById = async (id) => {
+  const review = await Review.findById(id)
+    .populate('user_id', 'name email')           // lấy name + email user
+    .populate('product_id', 'name price');       // lấy name + price product
+
+  return review;
+};
 
 
 export default {
@@ -236,4 +243,5 @@ export default {
   deleteByAdmin,
   getStatsByProduct,
   getDashboardStats,
+  getReviewById,
 };

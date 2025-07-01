@@ -1,4 +1,4 @@
-export { default as Product } from './product.model.js';
+export { default as Product } from "./product.model.js";
 export { default as userModel } from "./user.model.js";
 export { default as tokenModel } from "./token.model.js";
 export { default as postModel } from "./post.model.js";
@@ -8,6 +8,7 @@ export { default as categoryModel } from "./category.model.js";
 export { default as couponModel } from "./coupon.model.js";
 export { default as couponUsageModel } from "./couponUsage.model.js";
 export { default as cartModel } from "./cart.model.js";
-export { default as Variant } from './variant.model.js';
-export { default as favoriteModel } from './favorite.model.js';
-export { default as Review } from './review.model.js';
+export { default as Variant } from "./variant.model.js";
+export { default as favoriteModel } from "./favorite.model.js";
+export { default as Review } from "./review.model.js";
+export { default as addressModel } from "./address.model.js";

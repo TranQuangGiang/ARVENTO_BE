@@ -1,7 +1,8 @@
 import paymentService from "../services/payment.service.js";
 import { baseResponse } from "../utils/index.js";
 import { logger } from "../config/index.js";
-import { createCODPaymentSchema, createBankingPaymentSchema, refundRequestSchema } from "../validations/payment.validation.js";
+import { createCODPaymentSchema, createBankingPaymentSchema, createZaloPayPaymentSchema, createMoMoPaymentSchema, refundRequestSchema } from "../validations/payment.validation.js";
+import { CALLBACK_RESPONSES } from "../config/payment.config.js";
 
 // Tạo payment cho COD
 const createCODPayment = async (req, res) => {
@@ -96,10 +97,124 @@ export const getPaymentHistory = async (req, res, next) => {
     next(err);
   }
 };
+
+// Tạo payment cho ZaloPay
+const createZaloPayPayment = async (req, res) => {
+  try {
+    const { error, value } = createZaloPayPaymentSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return baseResponse.badRequestResponse(res, null, error.details.map((e) => e.message).join(", "));
+    }
+    const user = req.user._id;
+    const payment = await paymentService.createZaloPayPayment({ user, ...value });
+    return baseResponse.createdResponse(res, payment, "Tạo thanh toán ZaloPay thành công");
+  } catch (err) {
+    logger.error(`[PAYMENT][ZALOPAY] Tạo thanh toán thất bại: ${err.message}`);
+    return baseResponse.errorResponse(res, null, err.message);
+  }
+};
+
+// Callback xác nhận thanh toán ZaloPay
+const confirmZaloPayPayment = async (req, res) => {
+  try {
+    const callbackData = req.body;
+    logger.info(`[ZALOPAY] Callback received: ${JSON.stringify(callbackData)}`);
+
+    const payment = await paymentService.confirmZaloPayPayment(callbackData);
+
+    if (!payment) {
+      logger.error(`[ZALOPAY] Callback failed: Payment not found`);
+      return res.json(CALLBACK_RESPONSES.FAILED);
+    }
+
+    logger.info(`[ZALOPAY] Callback success: Payment ${payment._id} updated`);
+    return res.json(CALLBACK_RESPONSES.SUCCESS);
+  } catch (err) {
+    logger.error(`[PAYMENT][ZALOPAY] Callback thất bại: ${err.message}`);
+    return res.json(CALLBACK_RESPONSES.FAILED);
+  }
+};
+
+// Query ZaloPay payment status
+const queryZaloPayStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await paymentService.queryZaloPayStatus(id);
+
+    if (!result.success) {
+      return baseResponse.badRequestResponse(res, result.data, "Không thể truy vấn trạng thái thanh toán");
+    }
+
+    return baseResponse.successResponse(res, result.data, "Truy vấn trạng thái thanh toán thành công");
+  } catch (err) {
+    logger.error(`[PAYMENT][ZALOPAY] Query status thất bại: ${err.message}`);
+    return baseResponse.errorResponse(res, null, err.message);
+  }
+};
+
+// Tạo payment cho MoMo
+const createMoMoPayment = async (req, res) => {
+  try {
+    const { error, value } = createMoMoPaymentSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return baseResponse.badRequestResponse(res, null, error.details.map((e) => e.message).join(", "));
+    }
+    const user = req.user._id;
+    const payment = await paymentService.createMoMoPayment({ user, ...value });
+    return baseResponse.createdResponse(res, payment, "Tạo thanh toán MoMo thành công");
+  } catch (err) {
+    logger.error(`[PAYMENT][MOMO] Tạo thanh toán thất bại: ${err.message}`);
+    return baseResponse.errorResponse(res, null, err.message);
+  }
+};
+
+// Callback xác nhận thanh toán MoMo
+const confirmMoMoPayment = async (req, res) => {
+  try {
+    const callbackData = req.body;
+    logger.info(`[MOMO] Callback received: ${JSON.stringify(callbackData)}`);
+
+    const payment = await paymentService.confirmMoMoPayment(callbackData);
+
+    if (!payment) {
+      logger.error(`[MOMO] Callback failed: Payment not found`);
+      return res.json(CALLBACK_RESPONSES.FAILED);
+    }
+
+    logger.info(`[MOMO] Callback success: Payment ${payment._id} updated`);
+    return res.json(CALLBACK_RESPONSES.SUCCESS);
+  } catch (err) {
+    logger.error(`[PAYMENT][MOMO] Callback thất bại: ${err.message}`);
+    return res.json(CALLBACK_RESPONSES.FAILED);
+  }
+};
+
+// Query MoMo payment status
+const queryMoMoStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await paymentService.queryMoMoStatus(id);
+
+    if (!result.success) {
+      return baseResponse.badRequestResponse(res, result.data, "Không thể truy vấn trạng thái thanh toán");
+    }
+
+    return baseResponse.successResponse(res, result.data, "Truy vấn trạng thái thanh toán thành công");
+  } catch (err) {
+    logger.error(`[PAYMENT][MOMO] Query status thất bại: ${err.message}`);
+    return baseResponse.errorResponse(res, null, err.message);
+  }
+};
 export default {
   createCODPayment,
   createBankingPayment,
   confirmBankingPayment,
+  createZaloPayPayment,
+  confirmZaloPayPayment,
+  queryZaloPayStatus,
+  createMoMoPayment,
+  confirmMoMoPayment,
+  queryMoMoStatus,
   getMyPayments,
   getPaymentDetail,
   requestRefund,

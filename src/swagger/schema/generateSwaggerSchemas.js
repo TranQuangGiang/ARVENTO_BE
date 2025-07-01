@@ -1,7 +1,6 @@
 import mongooseToSwagger from "mongoose-to-swagger";
 
-import { userModel, Product, postModel, bannerModel, categoryPostModel, categoryModel, couponModel, couponUsageModel, cartModel,Variant, favoriteModel, Review  } from "../../models/index.js";
-
+import { userModel, Product, postModel, bannerModel, categoryPostModel, categoryModel, couponModel, couponUsageModel, cartModel, Variant, favoriteModel, Review, addressModel } from "../../models/index.js";
 
 import { authSchemas } from "./auth.schemas.js";
 
@@ -20,8 +19,8 @@ export const swaggerSchemas = {
   Variant: generateSchema(Variant),
 
   Cart: generateSchema(cartModel),
-   favoriteModel: generateSchema(favoriteModel),
-   Review: generateSchema(Review),
+  favoriteModel: generateSchema(favoriteModel),
+  Review: generateSchema(Review),
+  Address: generateSchema(addressModel),
   ...authSchemas,
-
 };
