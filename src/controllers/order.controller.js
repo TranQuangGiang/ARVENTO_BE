@@ -1,33 +1,100 @@
 import orderService from "../services/order.service.js";
 import { baseResponse } from "../utils/index.js";
 import { logger } from "../config/index.js";
+import { validate } from "../middlewares/validate.middleware.js";
 
-import { createOrderSchema } from "../validations/order.validation.js";
-// ...existing code...
+import { createOrderSchema, createOrderFromCartSchema, updateOrderStatusSchema, getOrdersQuerySchema, exportOrdersQuerySchema, revenueQuerySchema } from "../validations/order.validation.js";
+// Tạo đơn hàng mới với cấu trúc chi tiết
 const createOrder = async (req, res) => {
   try {
     const { error, value } = createOrderSchema.validate(req.body, { abortEarly: false });
     if (error) {
       return baseResponse.badRequestResponse(res, null, error.details.map((e) => e.message).join(", "));
     }
+
     const user = req.user._id;
     const order = await orderService.createOrder({ user, ...value });
+
+    logger.info(`[ORDER] Created order ${order._id} for user ${user}`);
     return baseResponse.createdResponse(res, order, "Tạo đơn hàng thành công");
   } catch (err) {
     if (err.details) {
       return baseResponse.badRequestResponse(res, err.details, "Tạo đơn hàng thất bại");
     }
-    logger.error(`[ORDER] Tạo đơn hàng thất bại: ${err.message}`);
-    return baseResponse.errorResponse(res, null, err.message);
+
+    logger.error(`[ORDER] Tạo đơn hàng thất bại: ${err.message}`, {
+      stack: err.stack,
+      userId: req.user?._id,
+      body: req.body,
+    });
+
+    if (err.message.includes("không tồn tại") || err.message.includes("không khả dụng")) {
+      return baseResponse.notFoundResponse(res, null, err.message);
+    }
+    if (err.message.includes("không đủ") || err.message.includes("tồn kho")) {
+      return baseResponse.badRequestResponse(res, null, err.message);
+    }
+    if (err.message.includes("không hợp lệ")) {
+      return baseResponse.badRequestResponse(res, null, err.message);
+    }
+
+    return baseResponse.errorResponse(res, null, err.message, err.statusCode || 500);
+  }
+};
+
+// Tạo đơn hàng từ giỏ hàng
+const createOrderFromCart = async (req, res) => {
+  try {
+    const { error, value } = createOrderFromCartSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return baseResponse.badRequestResponse(res, null, error.details.map((e) => e.message).join(", "));
+    }
+
+    const userId = req.user._id;
+    const order = await orderService.createOrderFromCart(userId, value);
+
+    logger.info(`[ORDER] Created order ${order._id} from cart for user ${userId}`);
+    return baseResponse.createdResponse(res, order, "Tạo đơn hàng từ giỏ hàng thành công");
+  } catch (err) {
+    logger.error(`[ORDER] Tạo đơn hàng từ giỏ hàng thất bại: ${err.message}`, {
+      stack: err.stack,
+      userId: req.user?._id,
+      body: req.body,
+    });
+
+    if (err.message.includes("trống") || err.message.includes("không có sản phẩm")) {
+      return baseResponse.badRequestResponse(res, null, err.message);
+    }
+    if (err.message.includes("không tồn tại") || err.message.includes("không khả dụng")) {
+      return baseResponse.notFoundResponse(res, null, err.message);
+    }
+    if (err.message.includes("không đủ") || err.message.includes("tồn kho")) {
+      return baseResponse.badRequestResponse(res, null, err.message);
+    }
+    if (err.message.includes("không hợp lệ")) {
+      return baseResponse.badRequestResponse(res, null, err.message);
+    }
+
+    return baseResponse.errorResponse(res, null, err.message, err.statusCode || 500);
   }
 };
 const getMyOrders = async (req, res) => {
   try {
+    const { error, value } = getOrdersQuerySchema.validate(req.query, { abortEarly: false });
+    if (error) {
+      return baseResponse.badRequestResponse(res, null, error.details.map((e) => e.message).join(", "));
+    }
+
     const user = req.user._id;
-    const orders = await orderService.getMyOrders(user);
-    return baseResponse.successResponse(res, orders, "Lấy danh sách đơn hàng thành công");
+    const result = await orderService.getMyOrders(user, value);
+
+    return baseResponse.successResponse(res, result, "Lấy danh sách đơn hàng thành công");
   } catch (err) {
-    logger.error(`[ORDER] Lấy đơn hàng thất bại: ${err.message}`);
+    logger.error(`[ORDER] Lấy đơn hàng thất bại: ${err.message}`, {
+      stack: err.stack,
+      userId: req.user?._id,
+      query: req.query,
+    });
     return baseResponse.errorResponse(res, null, err.message);
   }
 };
@@ -35,16 +102,23 @@ const getMyOrders = async (req, res) => {
 const getOrderDetail = async (req, res) => {
   try {
     const { id } = req.params;
-    const order = await orderService.getOrderDetail(id);
-    if (!order) {
-      return baseResponse.notFoundResponse(res, null, "Không tìm thấy đơn hàng");
-    }
-    if (order.user.toString() !== req.user._id.toString()) {
-      return baseResponse.forbiddenResponse(res, null, "Bạn không có quyền xem đơn hàng này");
-    }
+    const userId = req.user._id;
+
+    // Use service method with user restriction for regular users
+    const order = await orderService.getOrderDetail(id, userId);
+
     return baseResponse.successResponse(res, order, "Lấy chi tiết đơn hàng thành công");
   } catch (err) {
-    logger.error(`[ORDER] Lấy chi tiết đơn hàng thất bại: ${err.message}`);
+    logger.error(`[ORDER] Lấy chi tiết đơn hàng thất bại: ${err.message}`, {
+      stack: err.stack,
+      orderId: req.params.id,
+      userId: req.user?._id,
+    });
+
+    if (err.message.includes("Không tìm thấy")) {
+      return baseResponse.notFoundResponse(res, null, err.message);
+    }
+
     return baseResponse.errorResponse(res, null, err.message);
   }
 };
@@ -84,13 +158,30 @@ const getAllOrders = async (req, res) => {
 
 const updateOrderStatus = async (req, res) => {
   try {
+    const { error, value } = updateOrderStatusSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return baseResponse.badRequestResponse(res, null, error.details.map((e) => e.message).join(", "));
+    }
+
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, note } = value;
     const changedBy = req.user._id;
-    const order = await orderService.updateOrderStatus(id, status, changedBy);
+
+    const order = await orderService.updateOrderStatus(id, status, changedBy, note);
+
     return baseResponse.successResponse(res, order, "Cập nhật trạng thái đơn hàng thành công");
   } catch (err) {
-    logger.error(`[ORDER] Cập nhật trạng thái đơn hàng thất bại: ${err.message}`);
+    logger.error(`[ORDER] Cập nhật trạng thái đơn hàng thất bại: ${err.message}`, {
+      stack: err.stack,
+      orderId: req.params.id,
+      userId: req.user?._id,
+      body: req.body,
+    });
+
+    if (err.message.includes("Không tìm thấy")) {
+      return baseResponse.notFoundResponse(res, null, err.message);
+    }
+
     return baseResponse.errorResponse(res, null, err.message);
   }
 };
@@ -150,13 +241,19 @@ const exportOrders = async (req, res) => {
   }
 };
 export default {
+  // Core order functions
   createOrder,
+  createOrderFromCart,
   getMyOrders,
   getOrderDetail,
   cancelOrder,
+
+  // Admin functions
   getAllOrders,
   updateOrderStatus,
   getOrderTimeline,
+
+  // Statistics and reporting
   getOrderStats,
   getRecentOrders,
   getRevenueByDate,
