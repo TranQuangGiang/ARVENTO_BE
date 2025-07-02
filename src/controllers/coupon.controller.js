@@ -2,6 +2,7 @@ import responseUtil from '../utils/response.util.js';
 import couponService from '../services/coupon.service.js';
 import Product from "../models/product.model.js";
 import mongoose from 'mongoose';
+import { getAvailableCouponsSchema } from "../validations/coupon.validation.js";
 // Tạo coupon mới (Admin)
 const createCoupon = async (req, res) => {
   try {
@@ -216,6 +217,25 @@ const toggleCouponStatus = async (req, res) => {
     return responseUtil.errorResponse(res, error, 'Lỗi khi cập nhật trạng thái mã giảm giá');
   }
 };
+const getAvailableCouponsController = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const { error, value } = getAvailableCouponsSchema.validate(req.query);
+    if (error) {
+      return responseUtil.validationErrorResponse(res, null, error.details[0].message);
+    }
+
+    const { page, limit } = value;
+
+    const coupons = await couponService.getAvailableCoupons(userId, page, limit);
+
+    return responseUtil.successResponse(res, coupons, "Danh sách coupon user được sử dụng.");
+  } catch (error) {
+    console.error(error);
+    return responseUtil.errorResponse(res, null, "Lỗi server khi lấy coupon.");
+  }
+};
 export default {
   createCoupon,
   getAllCoupons,
@@ -226,4 +246,5 @@ export default {
   applyCoupon,
   getUsageHistory,
   toggleCouponStatus,
+  getAvailableCouponsController,
 };

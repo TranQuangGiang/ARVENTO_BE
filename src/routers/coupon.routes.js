@@ -295,4 +295,9 @@ router.get(
  *         description: Lỗi máy chủ
  */
 router.put('/admin/:id/toggle',authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), couponController.toggleCouponStatus);
+router.get(
+  "/available",authMiddleware.authenticateToken,
+  couponController.getAvailableCouponsController
+);
+
 export default router;
