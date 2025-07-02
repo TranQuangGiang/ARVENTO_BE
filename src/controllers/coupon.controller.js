@@ -1,15 +1,92 @@
 import responseUtil from '../utils/response.util.js';
 import couponService from '../services/coupon.service.js';
+import Product from "../models/product.model.js";
 import mongoose from 'mongoose';
 // Tạo coupon mới (Admin)
 const createCoupon = async (req, res) => {
   try {
+    const {
+      products = [],
+      excludedProducts = [],
+      categories = [],
+      excludedCategories = [],
+    } = req.body;
+
+    // 1. Check trùng product
+    const duplicateProducts = products.filter((p) =>
+      excludedProducts.includes(p)
+    );
+    if (duplicateProducts.length > 0) {
+      return responseUtil.badRequestResponse(
+        res,
+        null,
+        `Sản phẩm được áp dụng và không được áp dụng không được trùng nhau. Trùng: ${duplicateProducts.join(", ")}`
+      );
+    }
+
+    // 2. Check trùng categories
+    const duplicateCategories = categories.filter((c) =>
+      excludedCategories.includes(c)
+    );
+    if (duplicateCategories.length > 0) {
+      return responseUtil.badRequestResponse(
+        res,
+        null,
+        `Danh mục được áp dụng và không được áp dụng không được trùng nhau. Trùng: ${duplicateCategories.join(", ")}`
+      );
+    }
+
+    // 3. Nếu có products -> kiểm tra category của chúng không nằm trong excludedCategories
+    if (products.length > 0 && excludedCategories.length > 0) {
+      const productDocs = await Product.find({ _id: { $in: products } });
+      const categoryIds = productDocs
+        .map((p) => p.category_id?.toString())
+        .filter(Boolean);
+
+      const overlap = categoryIds.filter((catId) =>
+        excludedCategories.includes(catId)
+      );
+
+      if (overlap.length > 0) {
+        return responseUtil.badRequestResponse(
+          res,
+          null,
+          `Danh mục bị loại trừ không được chứa danh mục của sản phẩm áp dụng. Trùng: ${overlap.join(", ")}`
+        );
+      }
+    }
+
+    // 4. Nếu có excludedProducts -> kiểm tra category của chúng không nằm trong categories
+    if (excludedProducts.length > 0 && categories.length > 0) {
+      const excludedProductDocs = await Product.find({
+        _id: { $in: excludedProducts }
+      });
+
+      const excludedCategoryIds = excludedProductDocs
+        .map((p) => p.category_id?.toString())
+        .filter(Boolean);
+
+      const overlap = excludedCategoryIds.filter((catId) =>
+        categories.includes(catId)
+      );
+
+      if (overlap.length > 0) {
+        return responseUtil.badRequestResponse(
+          res,
+          null,
+          `Danh mục áp dụng không được chứa danh mục của sản phẩm bị loại trừ. Trùng: ${overlap.join(", ")}`
+        );
+      }
+    }
+
+    //  Không vi phạm => tạo
     const coupon = await couponService.createCoupon(req.body);
     responseUtil.createdResponse(res, coupon, 'Tạo mã giảm giá thành công');
   } catch (error) {
     responseUtil.errorResponse(res, null, error.message, 400);
   }
 };
+
 
 // Lấy tất cả coupon (Admin)
 const getAllCoupons = async (req, res) => {
