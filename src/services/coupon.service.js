@@ -405,7 +405,54 @@ const toggleCouponStatus = async (id) => {
     throw err;
   }
 };
+const getAvailableCoupons = async (userId, page = 1, limit = 20) => {
+  const now = new Date();
 
+  const coupons = await Coupon.find({
+    isActive: true,
+    $or: [
+      { expiryDate: null },
+      { expiryDate: { $gte: now } },
+    ],
+    $or: [
+      { usageLimit: null },
+      { $expr: { $lt: ["$usageCount", "$usageLimit"] } },
+    ],
+    $or: [
+      { userRestrictions: { $size: 0 } },
+      { userRestrictions: userId },
+    ],
+  })
+    .skip((page - 1) * limit)
+    .limit(limit)
+    .lean();
+
+  const result = [];
+
+  for (const coupon of coupons) {
+    if (coupon.perUserLimit) {
+      const usage = await CouponUsage.findOne({
+        user: userId,
+        coupon: coupon._id,
+      });
+
+      if (usage && usage.usageCount >= coupon.perUserLimit) {
+        continue;
+      }
+    }
+
+    result.push({
+      _id: coupon._id,
+      code: coupon.code,
+      discountType: coupon.discountType,
+      discountValue: coupon.discountValue,
+      description: coupon.description,
+      expiryDate: coupon.expiryDate,
+    });
+  }
+
+  return result;
+};
 export default {
   createCoupon,
   getAllCoupons,
@@ -417,4 +464,5 @@ export default {
   recordCouponUsage,
   getCouponUsageHistory,
   toggleCouponStatus,
+  getAvailableCoupons,
 };

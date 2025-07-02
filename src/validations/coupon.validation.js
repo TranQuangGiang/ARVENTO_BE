@@ -85,6 +85,10 @@ export const bodySchema = Joi.object({
 export const querySchema = Joi.object({
   verbose: Joi.boolean(),
 });
+export const getAvailableCouponsSchema = Joi.object({
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(20),
+});
 export default {
   createCouponValidation,
   updateCouponValidation,

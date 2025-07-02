@@ -295,4 +295,77 @@ router.get(
  *         description: Lỗi máy chủ
  */
 router.put('/admin/:id/toggle',authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), couponController.toggleCouponStatus);
+/**
+ * @swagger
+ * /coupons/available:
+ *   get:
+ *     summary: Lấy danh sách mã giảm giá mà user hiện tại được sử dụng
+ *     tags: [Coupons]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Trang hiện tại
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Số lượng bản ghi trên 1 trang
+ *     responses:
+ *       200:
+ *         description: Danh sách coupon mà user hiện tại được sử dụng
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Danh sách coupon user được sử dụng.
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       _id:
+ *                         type: string
+ *                         example: "64a768c2fc13ae1b250001aa"
+ *                       code:
+ *                         type: string
+ *                         example: "SUMMER2024"
+ *                       discountType:
+ *                         type: string
+ *                         enum:
+ *                           - percentage
+ *                           - fixed_amount
+ *                         example: "percentage"
+ *                       discountValue:
+ *                         type: number
+ *                         example: 10
+ *                       description:
+ *                         type: string
+ *                         example: "Giảm 10% cho đơn hàng từ 500k"
+ *                       expiryDate:
+ *                         type: string
+ *                         format: date-time
+ *                         example: "2025-12-31T23:59:59.000Z"
+ *       401:
+ *         description: Chưa đăng nhập hoặc token không hợp lệ
+ *       500:
+ *         description: Lỗi máy chủ
+ */
+
+router.get(
+  "/available",authMiddleware.authenticateToken,
+  couponController.getAvailableCouponsController
+);
+
 export default router;
