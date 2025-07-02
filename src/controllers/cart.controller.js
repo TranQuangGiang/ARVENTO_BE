@@ -224,7 +224,15 @@ const applyCoupon = async (req, res) => {
 
     const subtotal = activeItems.reduce((sum, item) => sum + parseFloat(item.total_price?.toString() || 0), 0);
 
-    const productIds = activeItems.map((item) => item.product.toString());
+    const productIds = activeItems.map(item => {
+      if (typeof item.product === "object" && item.product._id) {
+        return item.product._id.toString();
+      }
+      return item.product?.toString();
+    });
+
+    logger.info("[APPLY COUPON] subtotal:", subtotal);
+    logger.info("[APPLY COUPON] productIds in cart:", productIds);
 
     const result = await couponService.applyCoupon(coupon_code, userId, subtotal, productIds);
 

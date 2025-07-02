@@ -1,14 +1,16 @@
 import Coupon from '../models/coupon.model.js';
+import Product from '../models/product.model.js';
 import CouponUsage from '../models/couponUsage.model.js';
 import parseQueryParams from '../utils/queryParser.util.js';
 import Cart from "../models/cart.model.js";
+console.log("[DEBUG] Product model:", Product);
 // import cartService from "../services/cart.service.js";
 // Tạo coupon mới
 const createCoupon = async (couponData) => {
   if (!couponData.code) {
     couponData.code = generateRandomCode(8); // Tạo mã ngẫu nhiên 8 ký tự nếu không nhập
   }
-  
+
   const coupon = await Coupon.create(couponData);
   return coupon;
 };
@@ -20,16 +22,16 @@ const getAllCoupons = async (queryParams) => {
     discountType: 'exact',
     isActive: 'boolean',
   };
-  
+
   const { filters, sort, page, limit } = parseQueryParams(queryParams, allowedFields);
-  
+
   const coupons = await Coupon.find(filters)
     .sort(sort)
     .skip((page - 1) * limit)
     .limit(limit);
-    
+
   const total = await Coupon.countDocuments(filters);
-  
+
   return {
     coupons,
     total,
@@ -61,13 +63,64 @@ const updateCoupon = async (couponId, updateData) => {
     throw new Error('Ngày hết hạn phải sau ngày bắt đầu');
   }
 
-  const updatedCoupon = await Coupon.findByIdAndUpdate(couponId, updateData, {
-    new: true,
-    runValidators: true,
-  });
+  // ------------------------------
+  // Validate logic mới
+  // ------------------------------
+
+  // Sử dụng dữ liệu mới nếu có, nếu không dùng giá trị cũ
+  const products = (updateData.products || existingCoupon.products || []).map(id => id.toString());
+  const excludedProducts = (updateData.excludedProducts || existingCoupon.excludedProducts || []).map(id => id.toString());
+  const categories = (updateData.categories || existingCoupon.categories || []).map(id => id.toString());
+  const excludedCategories = (updateData.excludedCategories || existingCoupon.excludedCategories || []).map(id => id.toString());
+
+  // 1. products vs excludedProducts không được trùng nhau
+  const commonProducts = products.filter(id => excludedProducts.includes(id));
+  if (commonProducts.length > 0) {
+    throw new Error('Sản phẩm được áp dụng và không được áp dụng không được trùng nhau.');
+  }
+
+  // 2. categories vs excludedCategories không được trùng nhau
+  const commonCategories = categories.filter(id => excludedCategories.includes(id));
+  if (commonCategories.length > 0) {
+    throw new Error('Danh mục được áp dụng và không được áp dụng không được trùng nhau.');
+  }
+
+  // 3. products không được có category nằm trong excludedCategories
+  if (products.length > 0 && excludedCategories.length > 0) {
+    const appliedProducts = await Product.find({ _id: { $in: products } });
+    for (const product of appliedProducts) {
+      const catId = product.category_id?.toString();
+      if (excludedCategories.includes(catId)) {
+        throw new Error(`Sản phẩm ${product._id} thuộc danh mục ${catId} bị loại trừ trong coupon.`);
+      }
+    }
+  }
+
+  // 4. excludedProducts không được có category nằm trong categories
+  if (excludedProducts.length > 0 && categories.length > 0) {
+    const excludedProds = await Product.find({ _id: { $in: excludedProducts } });
+    for (const product of excludedProds) {
+      const catId = product.category_id?.toString();
+      if (categories.includes(catId)) {
+        throw new Error(`Sản phẩm ${product._id} bị loại trừ nhưng lại thuộc danh mục ${catId} được áp dụng trong coupon.`);
+      }
+    }
+  }
+
+  // ------------------------------
+
+  const updatedCoupon = await Coupon.findByIdAndUpdate(
+    couponId,
+    updateData,
+    {
+      new: true,
+      runValidators: true,
+    }
+  );
 
   return updatedCoupon;
 };
+
 
 
 // Xóa coupon
@@ -86,6 +139,60 @@ const validateCoupon = async (code, userId, cartTotal, productIds = []) => {
   if (!coupon) {
     throw new Error("Mã giảm giá không tồn tại");
   }
+
+  // =========================
+  // 1. Kiểm tra products vs excludedProducts
+  // =========================
+  const productIdsStr = (coupon.products || []).map(id => id.toString());
+  const excludedProductIdsStr = (coupon.excludedProducts || []).map(id => id.toString());
+  const commonProducts = productIdsStr.filter(id => excludedProductIdsStr.includes(id));
+  if (commonProducts.length > 0) {
+    throw new Error("Sản phẩm được áp dụng và không được áp dụng không được trùng nhau.");
+  }
+
+  // =========================
+  // 2. Kiểm tra categories vs excludedCategories
+  // =========================
+  const categoryIdsStr = (coupon.categories || []).map(id => id.toString());
+  const excludedCategoryIdsStr = (coupon.excludedCategories || []).map(id => id.toString());
+  const commonCategories = categoryIdsStr.filter(id => excludedCategoryIdsStr.includes(id));
+  if (commonCategories.length > 0) {
+    throw new Error("Danh mục được áp dụng và không được áp dụng không được trùng nhau.");
+  }
+
+  // =========================
+  // 3. Nếu có products, không được có category bị loại trừ
+  // =========================
+  if (productIdsStr.length > 0 && excludedCategoryIdsStr.length > 0) {
+    const appliedProducts = await Product.find({ _id: { $in: productIdsStr } });
+    for (const product of appliedProducts) {
+      const catId = product.category_id?.toString();
+      if (excludedCategoryIdsStr.includes(catId)) {
+        throw new Error(
+          `Sản phẩm ${product._id} thuộc danh mục ${catId} bị loại trừ trong coupon.`
+        );
+      }
+    }
+  }
+
+  // =========================
+  // 4. Nếu có excludedProducts, không được nằm trong categories được áp dụng
+  // =========================
+  if (excludedProductIdsStr.length > 0 && categoryIdsStr.length > 0) {
+    const excludedProducts = await Product.find({ _id: { $in: excludedProductIdsStr } });
+    for (const product of excludedProducts) {
+      const catId = product.category_id?.toString();
+      if (categoryIdsStr.includes(catId)) {
+        throw new Error(
+          `Sản phẩm ${product._id} bị loại trừ nhưng lại thuộc danh mục ${catId} được áp dụng trong coupon.`
+        );
+      }
+    }
+  }
+
+  // =========================
+  // Tiếp tục validate như cũ
+  // =========================
 
   if (!coupon.isActive) {
     throw new Error("Mã giảm giá không còn hiệu lực");
@@ -130,9 +237,14 @@ const validateCoupon = async (code, userId, cartTotal, productIds = []) => {
 
   if (coupon.products?.length > 0) {
     const couponProductIds = coupon.products.map((id) => id.toString());
+    console.log("----[DEBUG] validateCoupon----");
+    console.log("coupon.products:", couponProductIds);
+    console.log("payload productIds:", productIds.map(id => id?.toString()));
+
     const hasValidProduct = productIds.some((id) =>
       couponProductIds.includes(id.toString())
     );
+    console.log("hasValidProduct?", hasValidProduct);
     if (!hasValidProduct) {
       throw new Error(
         "Mã giảm giá không áp dụng cho sản phẩm trong giỏ hàng"
@@ -156,7 +268,9 @@ const validateCoupon = async (code, userId, cartTotal, productIds = []) => {
 
   if (coupon.categories?.length > 0) {
     const products = await Product.find({ _id: { $in: productIds } });
-    const categoryIds = products.map((p) => p.category_id?.toString());
+    const categoryIds = products
+      .map((p) => p.category_id?.toString())
+      .filter(Boolean);
     const hasValidCategory = categoryIds.some((catId) =>
       coupon.categories.includes(catId)
     );
@@ -169,7 +283,9 @@ const validateCoupon = async (code, userId, cartTotal, productIds = []) => {
 
   if (coupon.excludedCategories?.length > 0) {
     const products = await Product.find({ _id: { $in: productIds } });
-    const categoryIds = products.map((p) => p.category_id?.toString());
+    const categoryIds = products
+      .map((p) => p.category_id?.toString())
+      .filter(Boolean);
     const hasExcludedCategory = categoryIds.some((catId) =>
       coupon.excludedCategories.includes(catId)
     );
@@ -205,15 +321,18 @@ const validateCoupon = async (code, userId, cartTotal, productIds = []) => {
   const finalAmount = cartTotal - discountAmount;
 
   return {
-  isValid: true,
-  coupon,
-  discountAmount,
-  finalAmount,
+    isValid: true,
+    coupon,
+    discountAmount,
+    finalAmount,
+  };
 };
-};
+
 const applyCoupon = async (code, userId, subtotal, productIds) => {
   const { coupon } = await validateCoupon(code, userId, subtotal, productIds);
-
+  console.log("[DEBUG] Áp dụng mã:", coupon.code);
+  console.log("[DEBUG] Loại mã:", coupon.discountType);
+  console.log("[DEBUG] Giá trị giảm:", coupon.discountValue);
   coupon.usageCount += 1;
   await coupon.save();
 
@@ -225,8 +344,8 @@ const applyCoupon = async (code, userId, subtotal, productIds) => {
 
   let discountAmount = 0;
 
- if (coupon.discountType === "fixed_amount") {
-  discountAmount = coupon.discountValue;
+  if (coupon.discountType === "fixed_amount") {
+    discountAmount = coupon.discountValue;
   } else if (coupon.discountType === "percentage") {
     discountAmount = (subtotal * coupon.discountValue) / 100;
   }
