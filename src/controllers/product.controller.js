@@ -3,7 +3,7 @@ console.log("🚀 Controller loaded!");import {productService} from '../services
 // import { exportProducts as exportProductService } from '../services/product.service.js';
 import {baseResponse, generateSlug, parseQueryParams} from '../utils/index.js';
 import { logger } from '../config/index.js';
-import { Product, Variant } from '../models/index.js';
+import { Product, Variant, Option } from '../models/index.js';
 import { slugify } from '../utils/slugify.js';
 import fs from 'fs';
 console.log("👉 baseResponse type:", typeof baseResponse);
@@ -126,6 +126,51 @@ const updateProduct = async (req, res) => {
     if (req.body.name && req.body.name !== product.name) {
       req.body.slug = slugify(req.body.name);
     }
+     if (req.body.options) {
+  // Lấy tất cả option trong DB
+  const allOptions = await Option.find({});
+  const validKeys = allOptions.map(opt => opt.key);
+    if (typeof req.body.options === 'string') {
+  try {
+    req.body.options = JSON.parse(req.body.options);
+  } catch (e) {
+    return baseResponse.badRequestResponse(res, null, "Trường 'options' không hợp lệ, phải là JSON hợp lệ");
+  }
+}
+
+  for (const [key, values] of Object.entries(req.body.options)) {
+    if (!validKeys.includes(key)) {
+      return baseResponse.badRequestResponse(res, null, `Invalid option key: ${key}`);
+    }
+
+    const option = allOptions.find(opt => opt.key === key);
+
+    // Trường hợp values là mảng các object (ví dụ color) hoặc mảng string (ví dụ size)
+    const valuesArray = Array.isArray(values) ? values : [values];
+
+    let allValid = true;
+
+    if (key === "color") {
+      allValid = valuesArray.every(valObj => {
+        return option.values.some(optVal =>
+          optVal.name.toLowerCase() === valObj.name.toLowerCase()
+        );
+      });
+    } else {
+      allValid = valuesArray.every(val =>
+        option.values.includes(val)
+      );
+    }
+
+    if (!allValid) {
+      return baseResponse.badRequestResponse(
+        res,
+        null,
+        `Invalid value(s) '${JSON.stringify(valuesArray)}' for option '${key}'`
+      );
+    }
+  }
+}
 
     // Gọi service để cập nhật sản phẩm
     const updatedProduct = await productService.updateProduct(id, {
@@ -133,7 +178,7 @@ const updateProduct = async (req, res) => {
       updated_at: new Date()
     });
 
-    // ✅ Nếu gửi variants và có cờ overwrite
+    // Nếu gửi variants và có cờ overwrite
     if (
       req.body.overwriteVariants === 'true' || req.body.overwriteVariants === true
     ) {

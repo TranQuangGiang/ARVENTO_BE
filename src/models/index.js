@@ -12,3 +12,4 @@ export { default as Variant } from "./variant.model.js";
 export { default as favoriteModel } from "./favorite.model.js";
 export { default as Review } from "./review.model.js";
 export { default as addressModel } from "./address.model.js";
+export { default as Option } from "./option.model.js";
