@@ -88,7 +88,7 @@ router.get('/products/:productId/variants/options', VariantController.getVariant
  *         description: Không có quyền truy cập
  */
 
-router.get('/products/:productId/variants',authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), VariantController.getAdminVariants);
+router.get('/products/:productId/variants', VariantController.getAdminVariants);
 /**
  * @swagger
  * /variants/products/{productId}/variants/{id}:
@@ -126,7 +126,7 @@ router.get('/products/:productId/variants',authMiddleware.authenticateToken, aut
  *       404:
  *         description: Không tìm thấy biến thể
  */
-router.get('/products/:productId/variants/:id',authMiddleware.authenticateToken, VariantController.getVariantById);
+router.get('/products/:productId/variants/:id', VariantController.getVariantById);
 
 
 // ========== ADMIN ROUTES ==========

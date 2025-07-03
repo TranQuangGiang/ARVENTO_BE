@@ -5,10 +5,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 
-import { Product, Variant } from "../models/index.js";
+import { Product, Variant, Option } from "../models/index.js";
 import { logger } from "../config/index.js";
 
-import {productValidate} from '../validations/index.js';
+import { productValidate } from '../validations/index.js';
 import { slugify } from '../utils/slugify.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -96,33 +96,35 @@ const createProduct = async (data) => {
       throw new Error('Mã sản phẩm đã tồn tại');
     }
 
-    // ===== Normalize options (nếu có) =====
+    // ===== Validate options từ collection Option =====
     if (data.options && typeof data.options === 'object') {
-      const normalizeSizes = (arr) =>
-        Array.isArray(arr)
-          ? arr
-              .filter(v => typeof v === 'string' && v.trim())
-              .map(v => v.trim().toUpperCase())
-          : [];
+      const allOptions = await Option.find({});
+      const validKeys = allOptions.map(opt => opt.key);
 
-      const capitalize = (str) =>
-        str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+      for (const [key, values] of Object.entries(data.options)) {
+        if (!validKeys.includes(key)) {
+          throw new Error(`Option key '${key}' không tồn tại.`);
+        }
 
-      const normalizeColors = (arr) =>
-        Array.isArray(arr)
-          ? arr
-              .filter(v => v && typeof v === 'object' && typeof v.name === 'string')
-              .map(v => ({
-                name: capitalize(v.name.trim()),
-                hex: (typeof v.hex === 'string' ? v.hex.trim().toUpperCase() : '#CCCCCC')
-              }))
-          : [];
+        const optionDoc = allOptions.find(o => o.key === key);
 
-      data.options.size = normalizeSizes(data.options.size);
-      data.options.color = normalizeColors(data.options.color);
-    } else {
-      data.options = { size: [], color: [] };
+        if (key === 'color') {
+          const colorNamesInDB = optionDoc.values.map(c => c.name);
+          for (const color of values) {
+            if (!colorNamesInDB.includes(color.name)) {
+              throw new Error(`Màu '${color.name}' không hợp lệ cho option '${key}'.`);
+            }
+          }
+        } else {
+          for (const val of values) {
+            if (!optionDoc.values.includes(val)) {
+              throw new Error(`Giá trị '${val}' không hợp lệ cho option '${key}'.`);
+            }
+          }
+        }
+      }
     }
+
 
     // ===== Tạo sản phẩm =====
     const product = await Product.create(data);
@@ -386,7 +388,12 @@ const importProducts = async (file) => {
   const workbook = xlsx.readFile(file.path);
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const data = xlsx.utils.sheet_to_json(sheet);
-
+  // Lấy tất cả Option
+  const allOptions = await Option.find({});
+  const optionMap = {};
+  for (const opt of allOptions) {
+    optionMap[opt.key] = opt.values;
+  }
   const results = [];
   const errors = [];
 
@@ -395,7 +402,44 @@ const importProducts = async (file) => {
       if (!item["Mã sản phẩm"] || !item["Tên sản phẩm"] || !item["Danh mục"] || !item["Giá gốc"]) {
         throw new Error("Thiếu thông tin bắt buộc");
       }
+      // Validate Option
+      const options = {};
 
+      // validate color
+      if (item["Màu sắc"]) {
+        const colorName = item["Màu sắc"].trim();
+
+        const colorOption = optionMap["color"];
+        if (!colorOption) {
+          throw new Error(`Không tìm thấy option 'color' trong hệ thống`);
+        }
+
+        const exist = colorOption.some(val => val.name.toLowerCase() === colorName.toLowerCase());
+        if (!exist) {
+          throw new Error(`Giá trị option 'color' không hợp lệ: ${colorName}`);
+        }
+
+        // Lưu lại
+        const colorObj = colorOption.find(val => val.name.toLowerCase() === colorName.toLowerCase());
+        options["color"] = [colorObj];
+      }
+
+      //validate size
+      if (item["Kích cỡ"]) {
+        const sizeVal = item["Kích cỡ"].trim();
+
+        const sizeOption = optionMap["size"];
+        if (!sizeOption) {
+          throw new Error(`Không tìm thấy option 'size' trong hệ thống`);
+        }
+
+        const exist = sizeOption.includes(sizeVal);
+        if (!exist) {
+          throw new Error(`Giá trị option 'size' không hợp lệ: ${sizeVal}`);
+        }
+
+        options["size"] = [sizeVal];
+      }
       const productData = {
         product_code: item["Mã sản phẩm"],
         name: item["Tên sản phẩm"],
@@ -405,10 +449,33 @@ const importProducts = async (file) => {
         sale_price: parseFloat(item["Giá khuyến mãi"]) || 0,
         stock: parseInt(item["Số lượng tồn"]) || 0,
         isActive: item["Trạng thái"] === "Có hiệu lực",
+        options,
         created_at: new Date(),
         updated_at: new Date()
       };
+      if (item["Images"]) {
+        try {
+          productData.images = JSON.parse(item["Images"]);
+        } catch (err) {
+          throw new Error("Cột Images không phải JSON hợp lệ");
+        }
+      }
 
+      if (item["Tags"]) {
+        try {
+          productData.tags = JSON.parse(item["Tags"]);
+        } catch (err) {
+          throw new Error("Cột Tags không phải JSON hợp lệ");
+        }
+      }
+
+      if (item["Variants"]) {
+        try {
+          productData.variants = JSON.parse(item["Variants"]);
+        } catch (err) {
+          throw new Error("Cột Variants không phải JSON hợp lệ");
+        }
+      }
       const product = await Product.create(productData);
       await product.calculateTotalStock();
       results.push(product);

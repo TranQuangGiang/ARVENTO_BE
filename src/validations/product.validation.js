@@ -127,6 +127,16 @@ export const productValidate = {
     }),
     images: Joi.array().items(imageValidation).optional(),
     variants: Joi.array().items(variantValidation).optional(),
+  options: Joi.object({
+    size: Joi.array().items(Joi.string()).optional(),
+    color: Joi.array().items(
+      Joi.object({
+        name: Joi.string().required(),
+        hex: Joi.string().optional(),
+      })
+    ).optional(),
+  }).optional(),
+    variants: Joi.array().items(variantValidation).optional(),
   }),
   search: Joi.object({
     query: Joi.string().max(100).messages({
