@@ -19,45 +19,75 @@ const generateVariants = async (productId, input) => {
   const overwrite = input.overwrite === true;
   const images = input.images || {};
 
+  // ✅ Base price
   const basePrice =
     product.sale_price && parseFloat(product.sale_price.toString()) > 0
       ? parseFloat(product.sale_price.toString())
       : parseFloat(product.original_price.toString());
 
-  // 🔒 VALIDATE options với product.options
-  const validSizes = product.options?.size || [];
-  const validColors = (product.options?.color || [])
+  // ✅ Lấy options riêng đã chọn của sản phẩm
+  const validSizes = product.options?.get('size') || [];
+  const validColorsRaw = product.options?.get('color') || [];
+
+  const validColors = validColorsRaw
     .filter(c => c && typeof c.name === 'string')
     .map(c => c.name.toLowerCase());
 
-  const inputSizes = (inputOptions.size || [])
-    .filter(s => typeof s === 'string' && s.trim())
-    .map(s => s.trim().toUpperCase());
+  console.log("✅ validColorsRaw:", validColorsRaw);
 
-  const inputColors = (inputOptions.color || [])
-    .filter(c => c && typeof c.name === 'string')
-    .map(c => c.name.toLowerCase());
-
+  // ✅ Chuẩn hoá input
+  // Check size
+const rawInputSizes = (inputOptions.size || []);
+const emptySizes = rawInputSizes.filter(s => !s || !s.trim());
+if (emptySizes.length > 0) {
+  throw new Error(`Giá trị size không hợp lệ: trống hoặc rỗng`);
+}
+const inputSizes = rawInputSizes
+  .map(s => s.trim().toUpperCase());
+const duplicateSizes = inputSizes.filter(
+  (s, i, arr) => arr.indexOf(s) !== i
+);
+if (duplicateSizes.length > 0) {
+  throw new Error(`Size bị trùng lặp: ${[...new Set(duplicateSizes)].join(', ')}`);
+}
+  // Check color
+const rawInputColors = (inputOptions.color || []);
+const emptyColors = rawInputColors.filter(
+  c => !c || typeof c !== 'object' || !c.name || !c.name.trim()
+);
+if (emptyColors.length > 0) {
+  throw new Error(`Color không hợp lệ: có giá trị rỗng hoặc thiếu name`);
+}
+const inputColors = rawInputColors
+  .map(c => c.name.toLowerCase());
+const duplicateColors = inputColors.filter(
+  (c, i, arr) => arr.indexOf(c) !== i
+);
+if (duplicateColors.length > 0) {
+  throw new Error(`Color bị trùng lặp: ${[...new Set(duplicateColors)].join(', ')}`);
+}
+  // ✅ Validate size
   const invalidSizes = inputSizes.filter(s => !validSizes.includes(s));
-  const invalidColors = inputColors.filter(c => !validColors.includes(c));
-
-  if (invalidSizes.length || invalidColors.length) {
-    throw new Error(`Options không hợp lệ: ${
-      invalidSizes.length ? 'Size: ' + invalidSizes.join(', ') : ''
-    } ${
-      invalidColors.length ? 'Color: ' + invalidColors.join(', ') : ''
-    }`);
+  if (invalidSizes.length > 0) {
+    throw new Error(`Options không hợp lệ: Size: ${invalidSizes.join(', ')}`);
   }
 
-  //  Nếu overwrite, xoá toàn bộ biến thể cũ
+  // ✅ Validate color
+  const invalidColors = inputColors.filter(
+    c => !validColors.includes(c)
+  );
+  if (invalidColors.length > 0) {
+    throw new Error(
+      `Options không hợp lệ: Color: ${invalidColors.join(', ')}`
+    );
+  }
+
+  // ✅ Nếu overwrite → xóa toàn bộ variant cũ
   if (overwrite) {
     await Variant.deleteMany({ product_id: productId });
   }
 
-  //  Sinh các tổ hợp size–color từ input
-  const combinations = getCombinations(inputOptions);
-
-  //  Lấy danh sách biến thể đã tồn tại (nếu không overwrite)
+  // ✅ Lấy variant đã tồn tại
   const existingVariants = overwrite
     ? []
     : await Variant.find({ product_id: productId });
@@ -71,57 +101,65 @@ const generateVariants = async (productId, input) => {
           : typeof v.color === 'object' && typeof v.color.name === 'string'
           ? v.color.name.toLowerCase()
           : '';
-      return `${sizeKey}-${colorKey}`;
+      return `${colorKey}-${sizeKey}`;
     })
   );
 
-  // Tạo danh sách biến thể chưa tồn tại
-  const variants = combinations
-    .filter(({ size, color }) => {
-  const colorKey = typeof color === 'object' && typeof color.name === 'string'
-    ? color.name.toLowerCase()
-    : (typeof color === 'string' ? color.toLowerCase() : '');
-
-  const sizeKey = typeof size === 'string' ? size.toLowerCase() : '';
-  const key = `${sizeKey}-${colorKey}`;
-  return !existingKeys.has(key);
-})
-   .map(({ size, color }) => {
-  const colorName =
-    typeof color === 'object' && typeof color.name === 'string'
-      ? color.name
-      : (typeof color === 'string' ? color : '');
-
-  const matchedColor = (product.options.color || []).find(
-    c => c.name.toLowerCase() === colorName.toLowerCase()
+  // ✅ Tạo combinations: COLOR → SIZE
+  const sortedColors = validColorsRaw.filter(c =>
+    inputColors.includes(c.name.toLowerCase())
   );
+  // Sort size từ nhỏ đến lớn
+  const sortedSizes = [...new Set(inputSizes)].sort((a, b) => {
+    const numA = parseInt(a, 10);
+    const numB = parseInt(b, 10);
+    if (!isNaN(numA) && !isNaN(numB)) {
+      return numA - numB;
+    }
+    return a.localeCompare(b);
+  });
 
-  const img = images[colorName] || {
-    url: '',
-    alt: `${colorName} ${size || ''}`.trim()
-  };
+  const combinations = [];
+  for (const color of sortedColors) {
+    for (const size of sortedSizes) {
+      const key = `${color.name.toLowerCase()}-${size.toLowerCase()}`;
+      if (!existingKeys.has(key)) {
+        combinations.push({
+          color,
+          size
+        });
+      }
+    }
+  }
 
-  return {
-    product_id: productId,
-    size,
-    color: {
-      name: colorName,
-      hex: matchedColor?.hex || '#CCCCCC'
-    },
-    sku: `VAR-${size || 'N'}-${colorName || 'N'}-${Date.now()}`,
-    stock: 0,
-    price: basePrice,
-    image: img
-  };
-});
+  if (combinations.length === 0) return [];
 
-  // 📭 Không có biến thể mới → trả về rỗng
-  if (!variants.length) return [];
+  const variants = combinations.map(({ color, size }) => {
+    const img = images[color.name] || {
+      url: '',
+      alt: `${color.name} ${size || ''}`.trim()
+    };
+
+    return {
+      product_id: productId,
+      size,
+      color: {
+        name: color.name,
+        hex: color.hex || '#CCCCCC'
+      },
+      sku: `VAR-${size || 'N'}-${color.name || 'N'}-${Date.now()}`,
+      stock: 0,
+      price: basePrice,
+      image: img
+    };
+  });
 
   const created = await Variant.insertMany(variants);
   await product.calculateTotalStock();
   return created;
 };
+
+
 
 const updateVariant = async (productId, id, update) => {
   const updated = await Variant.findOneAndUpdate({ _id: id, product_id: productId }, update, { new: true, runValidators: true });
@@ -234,43 +272,52 @@ const getAdminVariants = async (productId, query = {}) => {
     page = 1,
     limit = 10,
     size,
-    colorName,
-    populateProduct = false
+    colorName
   } = query;
 
   const skip = (Number(page) - 1) * Number(limit);
 
-  const filter = {
-    product_id: productId
-  };
+  let objectIdProductId;
+  try {
+    objectIdProductId = new mongoose.Types.ObjectId(productId);
+  } catch (err) {
+    throw new Error('productId không hợp lệ');
+  }
+
+  const match = { product_id: objectIdProductId };
 
   if (size) {
-    filter.size = size;
+    match.size = size;
   }
 
   if (colorName) {
-    filter['color.name'] = { $regex: new RegExp(colorName, 'i') }; // tìm không phân biệt hoa thường
+    match['color.name'] = { $regex: new RegExp(colorName, 'i') };
   }
 
-  let queryExec = Variant.find(filter)
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(Number(limit));
+  console.log('>>> MATCH:', match);
 
-  if (populateProduct) {
-    queryExec = queryExec.populate('product_id', 'name sale_price images');
-  }
+  const pipeline = [
+    { $match: match },
+    {
+      $sort: {
+        'color.name': 1,
+        size: 1
+      }
+    },
+    { $skip: skip },
+    { $limit: Number(limit) }
+  ];
 
-  const [data, total] = await Promise.all([
-    queryExec.lean(),
-    Variant.countDocuments(filter)
+  const [data, totalCount] = await Promise.all([
+    Variant.aggregate(pipeline),
+    Variant.countDocuments(match)
   ]);
 
   return {
-    total,
+    total: totalCount,
     page: Number(page),
     limit: Number(limit),
-    totalPages: Math.ceil(total / Number(limit)),
+    totalPages: Math.ceil(totalCount / Number(limit)),
     data
   };
 };

@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import Variant from './variant.model.js';
+import Option from './option.model.js'
 import mongoosePaginate from 'mongoose-paginate-v2';
 const productSchema = new mongoose.Schema({
   category_id: {
@@ -72,9 +73,11 @@ const productSchema = new mongoose.Schema({
     default: false // true: admin điều khiển trạng thái, false: tự động theo tồn kho
   },
  options: {
-  type: Object, // ✅ Không dùng Map
-  default: () => ({ size: [], color: [] })
+  type: Map,
+  of: mongoose.Schema.Types.Mixed,
+  default: {}
 }
+
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
 });
@@ -118,5 +121,46 @@ productSchema.pre('remove', async function (next) {
   );
   next();
 });
+productSchema.pre('save', async function (next) {
+  const allOptions = await Option.find({});
+  const validKeys = allOptions.map(opt => opt.key);
+
+  for (const [key, values] of this.options.entries()) {
+    if (!validKeys.includes(key)) {
+      return next(new Error(`Invalid option key: ${key}`));
+    }
+
+    const option = allOptions.find(opt => opt.key === key);
+
+    const valuesArray = Array.isArray(values) ? values : [values];
+
+    let allValid = true;
+
+    if (key === 'color') {
+  allValid = valuesArray.every(val => {
+    const colorName =
+      typeof val === 'object' && val !== null
+        ? val.name?.toLowerCase()
+        : val?.toLowerCase();
+    return option.values.some(
+      c => c.name.toLowerCase() === colorName
+    );
+  });
+}else {
+      allValid = valuesArray.every(val =>
+        option.values.includes(val)
+      );
+    }
+
+    if (!allValid) {
+      return next(
+        new Error(`Invalid value(s) '${valuesArray}' for option '${key}'`)
+      );
+    }
+  }
+
+  next();
+});
+
 const Product = mongoose.model('Product', productSchema);
 export default Product;
