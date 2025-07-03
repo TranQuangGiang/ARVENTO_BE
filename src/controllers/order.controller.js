@@ -1,9 +1,40 @@
 import orderService from "../services/order.service.js";
 import { baseResponse } from "../utils/index.js";
 import { logger } from "../config/index.js";
-import { validate } from "../middlewares/validate.middleware.js";
+// import { validate } from "../middlewares/validate.middleware.js";
 
-import { createOrderSchema, createOrderFromCartSchema, updateOrderStatusSchema, getOrdersQuerySchema, exportOrdersQuerySchema, revenueQuerySchema } from "../validations/order.validation.js";
+import {
+  createOrderSchema,
+  createOrderFromCartSchema,
+  updateOrderStatusSchema,
+  getOrdersQuerySchema,
+  // exportOrdersQuerySchema, revenueQuerySchema
+} from "../validations/order.validation.js";
+
+// Helper function to parse sort parameter
+const parseSortParam = (sortParam) => {
+  try {
+    // If it's already an object, return it
+    if (typeof sortParam === "object") return sortParam;
+
+    // If it's a string like "-created_at", convert to object
+    if (typeof sortParam === "string") {
+      if (sortParam.startsWith("-")) {
+        const field = sortParam.substring(1);
+        return { [field]: -1 };
+      } else {
+        return { [sortParam]: 1 };
+      }
+    }
+
+    // Try to parse as JSON
+    return JSON.parse(sortParam);
+  } catch (e) {
+    // Default sort if parsing fails
+    logger.error(`[ORDER] Failed to parse sort parameter: ${e}`);
+    return { createdAt: -1 };
+  }
+};
 // Tạo đơn hàng mới với cấu trúc chi tiết
 const createOrder = async (req, res) => {
   try {
@@ -139,6 +170,8 @@ const getAllOrders = async (req, res) => {
   try {
     const filters = {
       status: req.query.status,
+      payment_status: req.query.payment_status,
+      payment_method: req.query.payment_method,
       user: req.query.user,
       dateFrom: req.query.dateFrom,
       dateTo: req.query.dateTo,
@@ -146,7 +179,7 @@ const getAllOrders = async (req, res) => {
     const options = {
       page: parseInt(req.query.page) || 1,
       limit: parseInt(req.query.limit) || 20,
-      sort: req.query.sort ? JSON.parse(req.query.sort) : { createdAt: -1 },
+      sort: req.query.sort ? parseSortParam(req.query.sort) : { createdAt: -1 },
     };
     const result = await orderService.getAllOrders(filters, options);
     return baseResponse.successResponse(res, result, "Lấy danh sách đơn hàng thành công");

@@ -2,7 +2,6 @@ import Order from "../models/order.model.js";
 import { Product } from "../models/index.js";
 import Variant from "../models/variant.model.js";
 import Address from "../models/address.model.js";
-import Cart from "../models/cart.model.js";
 import cartService from "./cart.service.js";
 import logger from "../config/logger.config.js";
 import ExcelJS from "exceljs";
@@ -321,7 +320,7 @@ const getOrderDetail = async (id, userId = null) => {
     const query = { _id: id };
     if (userId) query.user = userId; // Restrict to user's own orders if userId provided
 
-    const order = await Order.findOne(query).populate("user", "name email phone").populate("items.product", "name images slug description").populate("shipping_address").populate("billing_address").populate("timeline.changedBy", "name email");
+    const order = await Order.findOne(query).populate("user", "name email phone").populate("items.product", "name images slug description").populate("shipping_address", "name phone detail ward district province isDefault").populate("billing_address", "name phone detail ward district province isDefault").populate("timeline.changedBy", "name email");
 
     if (!order) {
       throw new Error("Không tìm thấy đơn hàng");
@@ -428,10 +427,12 @@ const cancelOrder = async (orderId, userId) => {
   }
 };
 const getAllOrders = async (filters = {}, options = {}) => {
-  // filters: { status, user, dateFrom, dateTo, ... }
+  // filters: { status, payment_status, payment_method, user, dateFrom, dateTo, ... }
   // options: { page, limit, sort }
   const query = {};
   if (filters.status) query.status = filters.status;
+  if (filters.payment_status) query.payment_status = filters.payment_status;
+  if (filters.payment_method) query.payment_method = filters.payment_method;
   if (filters.user) query.user = filters.user;
   if (filters.dateFrom || filters.dateTo) {
     query.createdAt = {};
@@ -445,8 +446,10 @@ const getAllOrders = async (filters = {}, options = {}) => {
     .sort(sort)
     .skip((page - 1) * limit)
     .limit(limit)
-    .populate("user")
-    .populate("items.product");
+    .populate("user", "name email phone")
+    .populate("items.product", "name slug images price")
+    .populate("shipping_address", "name phone detail ward district province isDefault")
+    .populate("billing_address", "name phone detail ward district province isDefault");
   const total = await Order.countDocuments(query);
   return { orders, total, page, limit };
 };
@@ -486,7 +489,7 @@ const updateOrderStatus = async (orderId, status, changedBy) => {
   return order;
 };
 const getRecentOrders = async (limit = 10) => {
-  return await Order.find().sort({ createdAt: -1 }).limit(limit).populate("user").populate("items.product");
+  return await Order.find().sort({ createdAt: -1 }).limit(limit).populate("user", "name email phone").populate("items.product", "name images slug price").populate("shipping_address", "name phone detail ward district province isDefault").populate("billing_address", "name phone detail ward district province isDefault");
 };
 const getRevenueByDate = async ({ from, to, groupBy = "day" }) => {
   const match = { status: "completed" };
