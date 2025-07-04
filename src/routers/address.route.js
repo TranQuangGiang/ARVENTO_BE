@@ -2,7 +2,8 @@ import express from 'express';
 import { authMiddleware } from '../middlewares/index.js';
 import addressController from '../controllers/address.controller.js';
 import Roles from '../constants/role.enum.js';
-
+import { validate } from "../middlewares/validate.middleware.js";
+import { createAddressSchema, updateAddressSchema  } from "../validations/address.validation.js";
 const router = express.Router();
 
 /**
@@ -217,7 +218,7 @@ router.get('/me/default', authMiddleware.authenticateToken, addressController.ge
  *       401:
  *         description: Chưa xác thực
  */
-router.post('/me', authMiddleware.authenticateToken, addressController.createMyAddress);
+router.post('/me', authMiddleware.authenticateToken,  validate({ body: createAddressSchema }), addressController.createMyAddress);
 
 /**
  * @swagger
@@ -287,7 +288,7 @@ router.get('/:id', authMiddleware.authenticateToken, addressController.getAddres
  *       401:
  *         description: Chưa xác thực
  */
-router.put('/:id', authMiddleware.authenticateToken, addressController.updateAddress);
+router.put('/:id', authMiddleware.authenticateToken,validate({ body: updateAddressSchema }), addressController.updateAddress);
 
 /**
  * @swagger
