@@ -1,6 +1,8 @@
 import addressService from "../services/address.service.js";
 import { baseResponse, parseQueryParams } from "../utils/index.js";
 import Roles from "../constants/role.enum.js";
+import { validateAddressData } from '../services/address.service.js';
+
 
 const getAddresses = async (req, res) => {
   try {
@@ -20,7 +22,7 @@ const getAddresses = async (req, res) => {
       [],
       'created_at'
     );
-
+   
     const addresses = await addressService.getAddressesByUserId(userId, { page, limit, sort });
     return baseResponse.successResponse(res, addresses, "Danh sách địa chỉ");
   } catch (error) {
@@ -64,7 +66,7 @@ const getAddressById = async (req, res) => {
 
 const createAddress = async (req, res) => {
   try {
-    const userId = req.params.userId || req.user._id;
+      const userId = req.user._id;
     
     // Kiểm tra quyền tạo địa chỉ
     const isAdmin = req.user.role === Roles.ADMIN;
@@ -75,7 +77,7 @@ const createAddress = async (req, res) => {
     }
 
     // Validate dữ liệu
-    addressService.validateAddressData(req.body);
+  await validateAddressData(req.body);
     
     const newAddress = await addressService.createAddress(userId, req.body);
     return baseResponse.createdResponse(res, newAddress, "Địa chỉ đã được tạo thành công");
@@ -86,37 +88,48 @@ const createAddress = async (req, res) => {
 
 const createMyAddress = async (req, res) => {
   try {
+    const userId = req.user?._id;
+    if (!userId) {
+      return baseResponse.unauthorizedResponse(res, null, "Người dùng chưa đăng nhập");
+    }
+
     // Validate dữ liệu
-    addressService.validateAddressData(req.body);
+   await validateAddressData(req.body);
     
-    const newAddress = await addressService.createAddress(req.user._id, req.body);
+    const newAddress = await addressService.createAddress(userId, req.body);
     return baseResponse.createdResponse(res, newAddress, "Địa chỉ đã được tạo thành công");
   } catch (error) {
     return baseResponse.errorResponse(res, null, error.message);
   }
 };
 
+
 const updateAddress = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user._id;
-    
-    // Admin có thể update bất kỳ địa chỉ nào, user chỉ có thể update địa chỉ của mình
-    const targetUserId = req.user.role === Roles.ADMIN && req.body.userId ? req.body.userId : userId;
-    
-    // Validate dữ liệu nếu có thay đổi
-    if (Object.keys(req.body).some(key => ['ward', 'district', 'province', 'phone'].includes(key))) {
-      const currentAddress = await addressService.getAddressById(id, targetUserId);
-      const updatedData = { ...currentAddress.toObject(), ...req.body };
-      addressService.validateAddressData(updatedData);
-    }
-    
-    const updatedAddress = await addressService.updateAddress(id, targetUserId, req.body);
-    return baseResponse.successResponse(res, updatedAddress, "Địa chỉ đã được cập nhật thành công");
+
+    const targetUserId =
+      req.user.role === Roles.ADMIN && req.body.userId
+        ? req.body.userId
+        : userId;
+      await validateAddressData(req.body);
+    const updatedAddress = await addressService.updateAddress(
+      id,
+      targetUserId,
+      req.body
+    );
+
+    return baseResponse.successResponse(
+      res,
+      updatedAddress,
+      "Địa chỉ đã được cập nhật thành công"
+    );
   } catch (error) {
     return baseResponse.errorResponse(res, null, error.message);
   }
 };
+
 
 const deleteAddress = async (req, res) => {
   try {
