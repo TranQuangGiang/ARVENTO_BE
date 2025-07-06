@@ -28,38 +28,14 @@ const updateOptionByKey = async (key, newValues) => {
   const option = await Option.findOne({ key });
   if (!option) return null;
 
-  // Giá trị hiện có
-  let existingValues = option.values;
+  // GHI ĐÈ giá trị cũ bằng giá trị mới
+  option.values = newValues;
 
-  // Gộp lại
-  let mergedValues;
-
-  if (key === 'color') {
-    const combined = [...existingValues, ...newValues];
-
-    // Loại trùng theo name (không phân biệt hoa thường)
-    const seen = new Set();
-    mergedValues = [];
-
-    for (const item of combined) {
-      const nameLower = item.name.toLowerCase().trim();
-      if (!seen.has(nameLower)) {
-        mergedValues.push(item);
-        seen.add(nameLower);
-      }
-    }
-  } else {
-    const combined = [...existingValues, ...newValues];
-    mergedValues = Array.from(
-      new Set(combined.map(v => v.toUpperCase().trim()))
-    );
-  }
-
-  option.values = mergedValues;
   await option.save();
 
   return option;
 };
+
 
 const deleteOptionByKey = async (key) => {
   return await Option.findOneAndDelete({ key });
