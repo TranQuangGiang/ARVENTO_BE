@@ -1,7 +1,7 @@
 import Category from '../models/category.model.js';
 import Product from '../models/product.model.js'; // Assuming product.model.js is in ../models
 import parseQueryParams from '../utils/queryParser.util.js';
-
+import slugify from "slugify";
 const categoryAllowedFields = {
   name: 'string',
   slug: 'string',
@@ -56,6 +56,7 @@ const getCategoryByIdAdmin = async (id) => {
 };
 
 const createCategory = async (categoryData) => {
+  // Check slug trùng (do controller đã tạo slug)
   const existingCategory = await Category.findOne({
     $or: [{ name: categoryData.name }, { slug: categoryData.slug }],
   });
@@ -78,19 +79,21 @@ const updateCategory = async (id, categoryData) => {
     throw new Error('Danh mục không tồn tại.');
   }
 
-  // Check for duplicate name or slug only if they are being updated
+  // Kiểm tra trùng nếu name đổi → slug cũng đổi
   if (categoryData.name && categoryData.name !== category.name) {
+    const newSlug = slugify(categoryData.name, { lower: true, strict: true });
+
     const nameExists = await Category.findOne({ name: categoryData.name, _id: { $ne: id } });
     if (nameExists) {
       throw new Error('Tên danh mục đã tồn tại.');
     }
-  }
 
-  if (categoryData.slug && categoryData.slug !== category.slug) {
-    const slugExists = await Category.findOne({ slug: categoryData.slug, _id: { $ne: id } });
+    const slugExists = await Category.findOne({ slug: newSlug, _id: { $ne: id } });
     if (slugExists) {
       throw new Error('Slug danh mục đã tồn tại.');
     }
+
+    categoryData.slug = newSlug;
   }
 
   Object.assign(category, categoryData);
