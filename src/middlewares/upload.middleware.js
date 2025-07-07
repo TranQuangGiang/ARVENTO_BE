@@ -14,10 +14,12 @@ const postDir = path.join(__dirname, "..", "..", "public", "uploads", "posts");
 const productDir = path.join(__dirname, "..", "..", "public", "uploads", "products");
 const importDir = path.join(__dirname, "..", "..", "public", "uploads", "imports");
 const reviewDir = path.join(__dirname, "..", "..", "public", "uploads", "reviews");
+const categoryDir = path.join(__dirname, "..", "..", "public", "uploads", "categories");
 // Đảm bảo thư mục tồn tại
 [bannerDir, postDir, productDir , importDir, reviewDir].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
+if (!fs.existsSync(categoryDir)) fs.mkdirSync(categoryDir, { recursive: true });
 
 // Kiểm tra loại file
 const fileFilter = (req, file, cb) => {
@@ -227,6 +229,35 @@ export const handleReviewUpload = (req, res, next) => {
     next();
   });
 };
+
+const categoryUpload = multer({
+  storage: multer.diskStorage({
+    destination: categoryDir,
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname);
+      cb(null, `category-${Date.now()}${ext}`);
+    }
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter
+});
+const uploadCategoryImage = (req, res, next) => {
+  categoryUpload.single("image")(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ success: false, message: err.message });
+    }
+    if (req.file) {
+      const relative = path.relative(
+        path.join(__dirname, "..", "..", "public"),
+        req.file.path
+      ).replace(/\\/g, "/");
+      const host = `${req.protocol}://${req.get("host")}`;
+      req.file.url = `${host}/${relative}`;
+    }
+    next();
+  });
+};
+
 export default {
   uploadBannerImage,
   uploadPostImages,
@@ -235,4 +266,6 @@ export default {
   uploadImportFile,
   handleUploadImportFile,
   handleReviewUpload,
+  uploadCategoryImage,
+  
 };

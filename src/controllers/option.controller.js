@@ -137,6 +137,9 @@ const updateOptionByKey = async (req, res) => {
       'Option updated successfully.'
     );
   } catch (err) {
+      console.error("========= LỖI XẢY RA =========");
+  console.error(err);
+  console.error(err.stack);
     return responseUtil.errorResponse(res, null, err.message);
   }
 };

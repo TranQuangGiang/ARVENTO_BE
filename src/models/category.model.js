@@ -17,7 +17,12 @@ const categorySchema = new mongoose.Schema(
       type: String,
       required: false,
     },
+     image:{
+  url: String,
+  alt: String
+},
   },
+  
   {
     timestamps: { createdAt: "created_at", updatedAt: false },
     versionKey: false,

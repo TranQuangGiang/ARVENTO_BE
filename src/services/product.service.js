@@ -185,6 +185,30 @@ const updateProduct = async (id, data) => {
       delete data.updated_at;
     }
 
+    // ✅ THÊM Ở ĐÂY
+    if (data.options) {
+      const allOptions = await Option.find({});
+
+      for (const [key, values] of Object.entries(data.options)) {
+        const option = allOptions.find(o => o.key === key);
+        if (!option) continue;
+
+        let validValues = [];
+
+        if (key === 'color') {
+          validValues = values.filter(v =>
+            option.values.some(ov =>
+              ov.name?.toLowerCase().trim() === v.name?.toLowerCase().trim()
+            )
+          );
+        } else {
+          validValues = values.filter(v => option.values.includes(v));
+        }
+
+        data.options[key] = validValues;
+      }
+    }
+
     // Validate bằng Joi nếu muốn (tuỳ chọn)
     const { error } = productValidate.update.validate(data, { abortEarly: false });
     if (error) {
@@ -217,6 +241,7 @@ const updateProduct = async (id, data) => {
     throw err;
   }
 };
+
 
 
 
