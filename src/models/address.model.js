@@ -8,11 +8,15 @@ const addressSchema = new mongoose.Schema({
     required: true,
     index: true
   },
-  ward: {
+ province: {
     type: String,
-    required: [true, 'Phường/Xã là bắt buộc'],
+    required: [true, 'Tỉnh/Thành phố là bắt buộc'],
     trim: true,
-    maxLength: [100, 'Tên phường/xã không được vượt quá 100 ký tự']
+    maxLength: [100, 'Tên tỉnh/thành phố không được vượt quá 100 ký tự']
+  },
+  province_id: {
+    type: Number,
+    required: [true, 'Mã tỉnh/thành phố là bắt buộc']
   },
   district: {
     type: String,
@@ -20,11 +24,19 @@ const addressSchema = new mongoose.Schema({
     trim: true,
     maxLength: [100, 'Tên quận/huyện không được vượt quá 100 ký tự']
   },
-  province: {
+  district_id: {
+    type: Number,
+    required: [true, 'Mã quận/huyện là bắt buộc']
+  },
+  ward: {
     type: String,
-    required: [true, 'Tỉnh/Thành phố là bắt buộc'],
+    required: [true, 'Phường/Xã là bắt buộc'],
     trim: true,
-    maxLength: [100, 'Tên tỉnh/thành phố không được vượt quá 100 ký tự']
+    maxLength: [100, 'Tên phường/xã không được vượt quá 100 ký tự']
+  },
+  ward_code: {
+    type: String,
+    required: [true, 'Mã phường/xã là bắt buộc']
   },
   phone: {
     type: String,

@@ -1,5 +1,39 @@
 import addressModel from "../models/address.model.js";
 import mongoose from "mongoose";
+import ghnService from './ghn.service.js';
+// import ghnService from './ghn.service.js';
+
+export const validateAddressData = async (address) => {
+  // 1. Validate tỉnh/thành
+  const provinces = await ghnService.getProvinces();
+  const province = provinces.find(p => p.ProvinceID === address.province_id);
+  if (!province) {
+    throw new Error(`ID tỉnh không tồn tại trong GHN: ${address.province_id}`);
+  }
+  if (province.ProvinceName.trim() !== address.province.trim()) {
+    throw new Error(`Tên tỉnh không khớp GHN. Phải là: ${province.ProvinceName}`);
+  }
+
+  // 2. Validate quận/huyện thuộc tỉnh đã chọn
+  const districts = await ghnService.getDistricts(address.province_id);
+  const district = districts.find(d => d.DistrictID === address.district_id);
+  if (!district) {
+    throw new Error(`ID quận/huyện không tồn tại trong GHN hoặc không thuộc tỉnh này: ${address.district_id}`);
+  }
+  if (district.DistrictName.trim() !== address.district.trim()) {
+    throw new Error(`Tên quận/huyện không khớp GHN. Phải là: ${district.DistrictName}`);
+  }
+
+  // 3. Validate phường/xã thuộc quận đã chọn
+  const wards = await ghnService.getWards(address.district_id);
+  const ward = wards.find(w => w.WardCode === address.ward_code);
+  if (!ward) {
+    throw new Error(`Mã phường/xã không tồn tại trong GHN hoặc không thuộc quận này: ${address.ward_code}`);
+  }
+  if (ward.WardName.trim() !== address.ward.trim()) {
+    throw new Error(`Tên phường/xã không khớp GHN. Phải là: ${ward.WardName}`);
+  }
+};
 
 const getAddressesByUserId = async (userId, { page = 1, limit = 10, sort = { created_at: -1 } } = {}) => {
   if (!mongoose.Types.ObjectId.isValid(userId)) {
@@ -53,27 +87,36 @@ const createAddress = async (userId, addressData) => {
   if (!mongoose.Types.ObjectId.isValid(userId)) {
     throw new Error("Invalid user ID");
   }
-
-  try {
-    // Kiểm tra xem user đã có địa chỉ nào chưa
+  const {
+    province, province_id,
+    district, district_id,
+    ward, ward_code,
+    detail, phone, isDefault, label
+  } = addressData;
+  // Validate tối thiểu
+  if (!province || !province_id || !district || !district_id || !ward || !ward_code) {
+    throw new Error("Thiếu thông tin tỉnh/thành phố, quận/huyện hoặc phường/xã");
+  }
+try {
     const existingAddressCount = await addressModel.countDocuments({ user: userId });
-    
-    // Nếu đây là địa chỉ đầu tiên hoặc được đánh dấu là mặc định
-    const isFirstAddress = existingAddressCount === 0;
-    const shouldBeDefault = isFirstAddress || addressData.isDefault;
-
+    const shouldBeDefault = existingAddressCount === 0 || isDefault;
     const newAddress = await addressModel.create({
-      ...addressData,
       user: userId,
-      isDefault: shouldBeDefault
+      province,
+      province_id,
+      district,
+      district_id,
+      ward,
+      ward_code,
+      detail,
+      phone,
+      label,
+      isDefault: shouldBeDefault,
     });
 
-    return await addressModel.findById(newAddress._id).populate('user', 'name email phone');
+    return await addressModel.findById(newAddress._id).populate("user", "name email phone");
   } catch (error) {
-    if (error.code === 11000) {
-      throw new Error("Duplicate address entry");
-    }
-    throw new Error(`Failed to create address: ${error.message}`);
+    throw new Error(`Lỗi tạo địa chỉ: ${error.message}`);
   }
 };
 
@@ -86,20 +129,35 @@ const updateAddress = async (addressId, userId, updateData) => {
   }
 
   try {
-    const address = await addressModel.findOne({ _id: addressId, user: userId });
+    const address = await addressModel.findOne({
+      _id: addressId,
+      user: userId,
+    });
     if (!address) {
-      throw new Error("Address not found or you don't have permission to update it");
+      throw new Error(
+        "Address not found or you don't have permission to update it"
+      );
     }
 
-    // Cập nhật address
+    // Nếu set địa chỉ này thành default, bỏ default ở các địa chỉ khác
+    if (updateData.isDefault === true) {
+      await addressModel.updateMany(
+        { user: userId, _id: { $ne: addressId } },
+        { isDefault: false }
+      );
+    }
+
     Object.assign(address, updateData);
     await address.save();
 
-    return await addressModel.findById(address._id).populate('user', 'name email phone');
+    return await addressModel
+      .findById(address._id)
+      .populate("user", "name email phone");
   } catch (error) {
     throw new Error(`Failed to update address: ${error.message}`);
   }
 };
+;
 
 const deleteAddress = async (addressId, userId) => {
   if (!mongoose.Types.ObjectId.isValid(addressId)) {
@@ -174,31 +232,7 @@ const getDefaultAddress = async (userId) => {
   }
 };
 
-const validateAddressData = (data) => {
-  const errors = [];
-  
-  if (!data.ward || data.ward.trim() === '') {
-    errors.push('Phường/Xã là bắt buộc');
-  }
-  
-  if (!data.district || data.district.trim() === '') {
-    errors.push('Quận/Huyện là bắt buộc');
-  }
-  
-  if (!data.province || data.province.trim() === '') {
-    errors.push('Tỉnh/Thành phố là bắt buộc');
-  }
-  
-  if (data.phone && !/^[0-9+\-\s()]+$/.test(data.phone)) {
-    errors.push('Số điện thoại không hợp lệ');
-  }
-  
-  if (errors.length > 0) {
-    throw new Error(errors.join(', '));
-  }
-  
-  return true;
-};
+
 
 export default {
   getAddressesByUserId,
