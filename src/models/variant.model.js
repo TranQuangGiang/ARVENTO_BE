@@ -115,5 +115,6 @@ variantSchema.pre('remove', async function (next) {
   );
   next();
 });
+
 const Variant = mongoose.model('Variant', variantSchema);
 export default Variant;

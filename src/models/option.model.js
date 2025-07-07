@@ -1,5 +1,4 @@
 import mongoose from 'mongoose';
-
 const optionSchema = new mongoose.Schema({
   key: {
     type: String,

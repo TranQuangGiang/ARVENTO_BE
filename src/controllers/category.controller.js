@@ -1,7 +1,9 @@
 import categoryService from '../services/category.service.js';
 import responseUtil from '../utils/response.util.js';
 import { createCategorySchema, updateCategorySchema } from '../validations/category.validation.js';
-
+import baseResponse from '../utils/response.util.js';
+import slugify from 'slugify';
+import Category from '../models/category.model.js';
 // Client-side controllers
 const getAllCategoriesForClient = async (req, res) => {
   try {
@@ -79,38 +81,53 @@ const getCategoryByIdForAdmin = async (req, res) => {
 
 const createCategory = async (req, res) => {
   try {
-    const { error } = createCategorySchema.validate(req.body);
-    if (error) {
-      return responseUtil.validationErrorResponse(res, error.details, error.details[0].message);
+    const data = req.body;
+
+    if (req.file) {
+      data.image = {
+        url: req.file.url,
+        alt: req.file.originalname.split(".")[0]
+      };
     }
-    const newCategory = await categoryService.createCategory(req.body);
-    return responseUtil.createdResponse(res, newCategory, 'Tạo mới danh mục thành công.');
-  } catch (error) {
-    console.error(error);
-    if (error.message.includes('tồn tại')) {
-      return responseUtil.conflictResponse(res, null, error.message);
-    }
-    return responseUtil.errorResponse(res, null, error.message || 'Lỗi tạo mới danh mục.');
+
+    // Bỏ slug nếu client gửi lên
+    delete data.slug;
+
+    data.slug = slugify(data.name, { lower: true, strict: true });
+
+    const category = await categoryService.createCategory(data);
+    return baseResponse.successResponse(res, category, "Tạo category thành công");
+  } catch (err) {
+    return baseResponse.errorResponse(res, null, err.message);
   }
 };
 
 const updateCategory = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { error } = updateCategorySchema.validate(req.body);
-    if (error) {
-      return responseUtil.validationErrorResponse(res, error.details, error.details[0].message);
+    const id = req.params.id;
+    const data = req.body;
+
+    if (req.file) {
+      data.image = {
+        url: req.file.url,
+        alt: req.file.originalname.split(".")[0]
+      };
     }
-    const updatedCategory = await categoryService.updateCategory(id, req.body);
-    return responseUtil.successResponse(res, updatedCategory, 'Cập nhật danh mục thành công.');
-  } catch (error) {
-    console.error(error);
-    if (error.message.includes('tồn tại') || error.message.includes('không tồn tại')) {
-      return responseUtil.badRequestResponse(res, null, error.message);
+
+    // Bỏ slug nếu client gửi lên
+    delete data.slug;
+
+    if (data.name) {
+      data.slug = slugify(data.name, { lower: true, strict: true });
     }
-    return responseUtil.errorResponse(res, null, error.message || 'Lỗi cập nhật danh mục.');
+
+    const updated = await categoryService.updateCategory(id, data);
+    return baseResponse.successResponse(res, updated, "Cập nhật category thành công");
+  } catch (err) {
+    return baseResponse.errorResponse(res, null, err.message);
   }
 };
+
 
 const deleteCategory = async (req, res) => {
   try {
