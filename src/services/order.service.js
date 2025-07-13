@@ -560,19 +560,40 @@ const getOrderTimeline = async (orderId) => {
 };
 
 // Cập nhật trạng thái đơn hàng (admin)
-const updateOrderStatus = async (orderId, status, changedBy) => {
+const allowedTransitions = {
+  pending: ["confirmed", "cancelled"],
+  confirmed: ["processing", "cancelled"],
+  processing: ["shipping", "cancelled"],
+  shipping: ["delivered"],
+  delivered: ["completed", "returned"],
+  completed: [],
+  cancelled: [],
+  returned: [],
+};
+
+const updateOrderStatus = async (orderId, newStatus, changedBy) => {
   const order = await Order.findById(orderId);
   if (!order) throw new Error("Không tìm thấy đơn hàng");
-  order.status = status;
-  if (!order.timeline) order.timeline = [];
+
+  const currentStatus = order.status;
+  const allowedNext = allowedTransitions[currentStatus] || [];
+
+  if (!allowedNext.includes(newStatus)) {
+    throw new Error(`Không thể chuyển trạng thái từ "${currentStatus}" sang "${newStatus}"`);
+  }
+
+  order.status = newStatus;
+  order.timeline ??= [];
   order.timeline.push({
-    status,
+    status: newStatus,
     changedBy,
     changedAt: new Date(),
   });
+
   await order.save();
   return order;
 };
+
 const getRecentOrders = async (limit = 10) => {
   return await Order.find().sort({ createdAt: -1 }).limit(limit).populate("user", "name email phone").populate("items.product", "name images slug price").populate("shipping_address", "name phone detail ward district province isDefault").populate("billing_address", "name phone detail ward district province isDefault");
 };
