@@ -1,5 +1,5 @@
 import Order from "../models/order.model.js";
-import { Product } from "../models/index.js";
+import { couponModel, Product } from "../models/index.js";
 import Variant from "../models/variant.model.js";
 import Address from "../models/address.model.js";
 import cartService from "./cart.service.js";
@@ -133,23 +133,18 @@ const checkAndUpdateStock = async (items) => {
   await Promise.all(updates);
   logger.info(`[ORDER] Successfully updated stock for ${validatedItems.length} items`);
 };
-
-// Tạo đơn hàng mới với cấu trúc mới
+// Tính lại subtotal từ items
+const calculateSubtotal = (items) => {
+  return items.reduce((sum, item) => {
+    const price = Number(item.price); // cần đảm bảo price có trong từng item
+    const quantity = Number(item.quantity || 1);
+    return sum + price * quantity;
+  }, 0);
+};
+// tao don hàng từ các item đc chọn trong giỏ hàng
 const createOrder = async (orderData) => {
   try {
-    const {
-      user,
-      items,
-      subtotal,
-      applied_coupon,
-      total,
-      shipping_address,
-      billing_address,
-      payment_method = "cod",
-      note,
-      // Backward compatibility
-      address,
-    } = orderData;
+    const { user, items, applied_coupon, shipping_address, billing_address, payment_method = "cod", note, address, shipping_fee = 0 } = orderData;
 
     logger.info(`[ORDER] Creating order for user: ${user}, items: ${items.length}`);
 
@@ -161,7 +156,7 @@ const createOrder = async (orderData) => {
       }
     }
 
-    // Validate billing address if provided
+    // Validate billing address
     if (billing_address) {
       const billingAddr = await Address.findById(billing_address);
       if (!billingAddr || billingAddr.user.toString() !== user.toString()) {
@@ -169,36 +164,86 @@ const createOrder = async (orderData) => {
       }
     }
 
-    // Check stock and validate items
+    // Kiểm tra tồn kho
     await checkAndUpdateStock(items);
 
-    // Create order with new structure
+    // Tính subtotal
+    const rawSubtotal = calculateSubtotal(items);
+
+    // Áp dụng coupon (nếu có)
+    let discountAmount = 0;
+    let couponPayload = undefined;
+
+    if (applied_coupon?.code) {
+      const couponCode = applied_coupon.code.trim().toUpperCase();
+      const coupon = await couponModel.findOne({ code: couponCode });
+
+      if (!coupon) {
+        throw new Error(`Mã giảm giá "${couponCode}" không tồn tại`);
+      }
+
+      if (!coupon.isValid()) {
+        throw new Error(`Mã giảm giá "${couponCode}" đã hết hạn hoặc không còn hiệu lực`);
+      }
+
+      // Kiểm tra hạn mức sử dụng theo từng user (nếu có)
+      if (coupon.perUserLimit) {
+        const usedCount = await Order.countDocuments({
+          user,
+          "applied_coupon.code": coupon.code,
+        });
+
+        if (usedCount >= coupon.perUserLimit) {
+          throw new Error(`Bạn đã sử dụng mã giảm giá "${coupon.code}" tối đa ${coupon.perUserLimit} lần`);
+        }
+      }
+
+      // Kiểm tra min/max spend
+      if (coupon.minSpend && rawSubtotal < coupon.minSpend) {
+        throw new Error(`Đơn hàng cần tối thiểu ${coupon.minSpend.toLocaleString()}₫ để dùng mã "${coupon.code}"`);
+      }
+      if (coupon.maxSpend && rawSubtotal > coupon.maxSpend) {
+        throw new Error(`Đơn hàng vượt quá mức tối đa ${coupon.maxSpend.toLocaleString()}₫ cho mã "${coupon.code}"`);
+      }
+
+      // Tính giảm giá
+      if (coupon.discountType === "percentage") {
+        discountAmount = rawSubtotal * (coupon.discountValue / 100);
+      } else if (coupon.discountType === "fixed_amount") {
+        discountAmount = coupon.discountValue;
+      }
+
+      // Không để tổng âm
+      discountAmount = Math.min(discountAmount, rawSubtotal);
+
+      couponPayload = {
+        code: coupon.code,
+        discount_amount: mongoose.Types.Decimal128.fromString(discountAmount.toFixed(2)),
+        discount_type: coupon.discountType,
+      };
+
+      // Cập nhật usageCount
+      coupon.usageCount += 1;
+      await coupon.save();
+    }
+
+    const total = Math.max(0, rawSubtotal - discountAmount + shipping_fee);
+
     const orderPayload = {
       user,
       items,
-      subtotal: mongoose.Types.Decimal128.fromString(subtotal.toString()),
-      total: mongoose.Types.Decimal128.fromString(total.toString()),
+      subtotal: mongoose.Types.Decimal128.fromString(rawSubtotal.toFixed(2)),
+      shipping_fee: mongoose.Types.Decimal128.fromString(shipping_fee.toFixed(2)),
+      total: mongoose.Types.Decimal128.fromString(total.toFixed(2)),
       shipping_address,
       billing_address,
       payment_method,
       note: note || "",
       status: "pending",
       payment_status: "pending",
+      ...(couponPayload && { applied_coupon: couponPayload }),
+      ...(address && { address }), // backward compatibility
     };
-
-    // Add coupon if provided
-    if (applied_coupon && applied_coupon.code) {
-      orderPayload.applied_coupon = {
-        code: applied_coupon.code,
-        discount_amount: mongoose.Types.Decimal128.fromString(applied_coupon.discount_amount.toString()),
-        discount_type: applied_coupon.discount_type || "percentage",
-      };
-    }
-
-    // Backward compatibility - keep old address field
-    if (address) {
-      orderPayload.address = address;
-    }
 
     const order = await Order.create(orderPayload);
 
@@ -209,58 +254,98 @@ const createOrder = async (orderData) => {
     throw error;
   }
 };
-
-// Tạo đơn hàng từ giỏ hàng
 const createOrderFromCart = async (userId, orderData) => {
   try {
-    const { shipping_address, billing_address, payment_method, note, use_cart_coupon = true } = orderData;
+    const { shipping_address, billing_address, payment_method, note, applied_coupon, shipping_fee = 0 } = orderData;
 
     logger.info(`[ORDER] Creating order from cart for user: ${userId}`);
 
-    // Get user's cart
-    const cart = await cartService.getCart(userId, false); // Don't include saved items
+    const cart = await cartService.getCart(userId, false);
 
     if (!cart || !cart.items || cart.items.length === 0) {
       throw new Error("Giỏ hàng trống");
     }
 
-    // Filter active items (not saved for later)
     const activeItems = cart.items.filter((item) => !item.saved_for_later);
-
     if (activeItems.length === 0) {
       throw new Error("Không có sản phẩm nào trong giỏ hàng để tạo đơn hàng");
     }
 
-    // Convert cart items to order items
     const orderItems = activeItems.map((cartItem) => ({
       product: cartItem.product,
       selected_variant: cartItem.selected_variant,
       quantity: cartItem.quantity,
-      unit_price: cartItem.unit_price,
-      total_price: cartItem.total_price,
+      unit_price: Number(cartItem.unit_price),
+      total_price: Number(cartItem.total_price),
     }));
 
-    // Prepare order data
+    const subtotal = orderItems.reduce((sum, item) => sum + item.total_price, 0);
+
+    let discountAmount = 0;
+    let couponPayload;
+
+    if (applied_coupon?.code) {
+      const code = applied_coupon.code.trim().toUpperCase();
+      const coupon = await couponModel.findOne({ code });
+
+      if (!coupon) throw new Error(`Mã giảm giá "${code}" không tồn tại`);
+      if (!coupon.isValid()) throw new Error(`Mã giảm giá "${code}" đã hết hạn hoặc không còn hiệu lực`);
+
+      if (coupon.perUserLimit) {
+        const usedCount = await Order.countDocuments({
+          user: userId,
+          "applied_coupon.code": code,
+        });
+        if (usedCount >= coupon.perUserLimit) {
+          throw new Error(`Bạn đã sử dụng mã "${code}" tối đa ${coupon.perUserLimit} lần`);
+        }
+      }
+
+      if (coupon.minSpend && subtotal < coupon.minSpend) {
+        throw new Error(`Đơn hàng cần tối thiểu ${coupon.minSpend.toLocaleString()}₫ để dùng mã "${code}"`);
+      }
+
+      if (coupon.maxSpend && subtotal > coupon.maxSpend) {
+        throw new Error(`Đơn hàng vượt quá ${coupon.maxSpend.toLocaleString()}₫ cho mã "${code}"`);
+      }
+
+      if (coupon.discountType === "percentage") {
+        discountAmount = subtotal * (coupon.discountValue / 100);
+      } else if (coupon.discountType === "fixed_amount") {
+        discountAmount = coupon.discountValue;
+      }
+
+      discountAmount = Math.min(discountAmount, subtotal);
+
+      couponPayload = {
+        code: coupon.code,
+        discount_amount: mongoose.Types.Decimal128.fromString(discountAmount.toFixed(2)),
+        discount_type: coupon.discountType,
+      };
+
+      coupon.usageCount += 1;
+      await coupon.save();
+    }
+
+    const finalTotal = Math.max(0, subtotal - discountAmount + shipping_fee);
+
     const orderPayload = {
       user: userId,
       items: orderItems,
-      subtotal: cart.subtotal,
-      total: cart.total,
+      subtotal: mongoose.Types.Decimal128.fromString(subtotal.toFixed(2)),
+      shipping_fee: mongoose.Types.Decimal128.fromString(shipping_fee.toFixed(2)),
+      total: mongoose.Types.Decimal128.fromString(finalTotal.toFixed(2)),
       shipping_address,
       billing_address,
       payment_method,
-      note,
+      note: note || "",
+      status: "pending",
+      payment_status: "pending",
+      ...(couponPayload && { applied_coupon: couponPayload }),
     };
 
-    // Add coupon if cart has one and user wants to use it
-    if (use_cart_coupon && cart.applied_coupon && cart.applied_coupon.code) {
-      orderPayload.applied_coupon = cart.applied_coupon;
-    }
+    const order = await Order.create(orderPayload);
 
-    // Create the order
-    const order = await createOrder(orderPayload);
-
-    // Clear the cart after successful order creation
     await cartService.clearCart(userId);
 
     logger.info(`[ORDER] Successfully created order ${order._id} from cart`);

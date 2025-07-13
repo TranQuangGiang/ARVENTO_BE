@@ -98,6 +98,7 @@ export const createOrderSchema = Joi.object({
     "string.length": "ID địa chỉ giao hàng phải có độ dài 24 ký tự",
     "any.required": "Địa chỉ giao hàng là bắt buộc",
   }),
+  // Dùng khi người dùng muốn tách riêng địa chỉ thanh toán với địa chỉ giao hàng.
   billing_address: Joi.string().hex().length(24).optional().messages({
     "string.hex": "ID địa chỉ thanh toán không hợp lệ",
     "string.length": "ID địa chỉ thanh toán phải có độ dài 24 ký tự",

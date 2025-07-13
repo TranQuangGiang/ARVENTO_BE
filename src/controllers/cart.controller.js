@@ -209,31 +209,36 @@ const clearCart = async (req, res) => {
     return responseUtil.errorResponse(res, null, error.message, error.statusCode || 500);
   }
 };
-
-// Áp dụng mã giảm giá
 const applyCoupon = async (req, res) => {
   try {
     const userId = req.user.id || req.user._id;
-    const { coupon_code } = req.body;
+    const { coupon_code, selected_items } = req.body;
 
-    logger.info(`[CART] POST /carts/coupons - User: ${userId}, Coupon: ${coupon_code}`);
+    logger.info(`[CART] POST /carts/coupons - User: ${userId}, Coupon: ${coupon_code}, SelectedItems: ${selected_items?.length || 0}`);
 
-    // Lấy giỏ hàng để tính subtotal + productIds
+    // Lấy giỏ hàng của user
     const cart = await cartService.getOrCreateCart(userId);
-    const activeItems = cart.items.filter((item) => !item.saved_for_later);
+    let activeItems = cart.items.filter((item) => !item.saved_for_later);
+
+    // Nếu FE truyền selected_items (danh sách itemId hoặc productId), chỉ lấy các item đó
+    if (selected_items?.length > 0) {
+      activeItems = activeItems.filter((item) => selected_items.includes(item._id?.toString() || item.product?.toString()));
+    }
+
+    if (activeItems.length === 0) {
+      return responseUtil.badRequestResponse(res, null, "Không có sản phẩm hợp lệ để áp dụng mã giảm giá");
+    }
 
     const subtotal = activeItems.reduce((sum, item) => sum + parseFloat(item.total_price?.toString() || 0), 0);
 
-    const productIds = activeItems.map(item => {
+    const productIds = activeItems.map((item) => {
       if (typeof item.product === "object" && item.product._id) {
         return item.product._id.toString();
       }
       return item.product?.toString();
     });
 
-    logger.info("[APPLY COUPON] subtotal:", subtotal);
-    logger.info("[APPLY COUPON] productIds in cart:", productIds);
-
+    // Gọi service để apply thực sự (chỉ tính toán preview)
     const result = await couponService.applyCoupon(coupon_code, userId, subtotal, productIds);
 
     return responseUtil.successResponse(res, result, "Áp dụng mã giảm giá thành công");
@@ -244,7 +249,7 @@ const applyCoupon = async (req, res) => {
       body: req.body,
     });
 
-    if (error.message.includes("không tồn tại") || error.message.includes("không hợp lệ") || error.message.includes("hết hạn") || error.message.includes("hết lượt")) {
+    if (["không tồn tại", "không hợp lệ", "hết hạn", "hết lượt", "Đơn hàng cần tối thiểu", "vượt quá mức tối đa"].some((msg) => error.message.includes(msg))) {
       return responseUtil.badRequestResponse(res, null, error.message);
     }
 
@@ -252,7 +257,6 @@ const applyCoupon = async (req, res) => {
   }
 };
 
-// Xóa mã giảm giá
 // Xóa mã giảm giá
 const removeCoupon = async (req, res) => {
   try {

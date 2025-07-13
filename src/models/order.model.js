@@ -153,6 +153,11 @@ const orderSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Address",
     },
+    shipping_fee: {
+      type: mongoose.Types.Decimal128,
+      default: 0,
+      min: 0,
+    },
     payment_method: {
       type: String,
       enum: ["cod", "banking", "zalopay", "momo"],

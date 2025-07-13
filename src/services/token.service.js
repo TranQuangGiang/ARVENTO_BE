@@ -1,18 +1,29 @@
 import { tokenModel } from "../models/index.js";
 import { jwtUtils, envUtils } from "../utils/index.js";
+import tokenConstant from "../constants/token.enum.js";
 
 const accessTokenSecret = envUtils.getEnv("ACCESS_TOKEN_SECRET");
 const refreshTokenSecret = envUtils.getEnv("REFRESH_TOKEN_SECRET");
 const expiresInAccessToken = envUtils.getEnv("ACCESS_TOKEN_EXPIRES_IN");
 const expiresInRefreshToken = envUtils.getEnv("REFRESH_TOKEN_EXPIRES_IN");
 
-const generateTokens = (user) => {
+const generateTokens = (user, options = {}) => {
+  const { withRefreshToken = true, accessTokenExpiresIn = expiresInAccessToken, refreshTokenExpiresIn = expiresInRefreshToken } = options;
+
   const payload = { id: user._id, email: user.email, role: user.role };
 
-  const accessToken = jwtUtils.generateToken(payload, accessTokenSecret, { expiresIn: expiresInAccessToken });
-  const refreshToken = jwtUtils.generateToken(payload, refreshTokenSecret, { expiresIn: expiresInRefreshToken });
+  const accessToken = jwtUtils.generateToken(payload, accessTokenSecret, {
+    expiresIn: accessTokenExpiresIn,
+  });
 
-  return { accessToken, refreshToken };
+  let refreshToken = null;
+  if (withRefreshToken) {
+    refreshToken = jwtUtils.generateToken(payload, refreshTokenSecret, {
+      expiresIn: refreshTokenExpiresIn,
+    });
+  }
+
+  return withRefreshToken ? { accessToken, refreshToken } : { accessToken };
 };
 
 const saveToken = async (userId, token, type) => {
@@ -42,10 +53,27 @@ const refresh = async (refreshToken) => {
     throw new Error("Token is invalid or expired");
   }
 };
+const verifyToken = (token, type = tokenConstant.ACCESS) => {
+  let secret;
+
+  switch (type) {
+    case tokenConstant.ACCESS:
+      secret = accessTokenSecret;
+      break;
+    case tokenConstant.REFRESH:
+      secret = refreshTokenSecret;
+      break;
+    default:
+      throw new Error("Invalid token type");
+  }
+
+  return jwtUtils.verify(token, secret);
+};
 
 export default {
   generateTokens,
   saveToken,
   removeRefreshToken,
   refresh,
+  verifyToken,
 };

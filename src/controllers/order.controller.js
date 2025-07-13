@@ -10,6 +10,7 @@ import {
   getOrdersQuerySchema,
   // exportOrdersQuerySchema, revenueQuerySchema
 } from "../validations/order.validation.js";
+import { sendEmail } from "../utils/email.util.js";
 
 // Helper function to parse sort parameter
 const parseSortParam = (sortParam) => {
@@ -35,7 +36,7 @@ const parseSortParam = (sortParam) => {
     return { createdAt: -1 };
   }
 };
-// Tạo đơn hàng mới với cấu trúc chi tiết
+// Tạo đơn hàng mới(chọn từ giỏ hàng)
 const createOrder = async (req, res) => {
   try {
     const { error, value } = createOrderSchema.validate(req.body, { abortEarly: false });
@@ -45,6 +46,15 @@ const createOrder = async (req, res) => {
 
     const user = req.user._id;
     const order = await orderService.createOrder({ user, ...value });
+
+    await sendEmail(
+      req.user.email,
+      "Xác nhận đơn hàng",
+      `<p>Chào ${req.user.name || "bạn"},</p>
+      <p>Chúng tôi đã nhận được đơn hàng <strong>#${order._id}</strong>.</p>
+      <p>Tổng tiền: <strong>${order.total.toLocaleString()}₫</strong></p>
+      <p>Cảm ơn bạn đã mua hàng tại hệ thống của chúng tôi!</p>`
+    );
 
     logger.info(`[ORDER] Created order ${order._id} for user ${user}`);
     return baseResponse.createdResponse(res, order, "Tạo đơn hàng thành công");
@@ -83,6 +93,15 @@ const createOrderFromCart = async (req, res) => {
 
     const userId = req.user._id;
     const order = await orderService.createOrderFromCart(userId, value);
+
+    await sendEmail(
+      req.user.email,
+      "Xác nhận đơn hàng",
+      `<p>Chào ${req.user.name || "bạn"},</p>
+      <p>Chúng tôi đã nhận được đơn hàng <strong>#${order._id}</strong>.</p>
+      <p>Tổng tiền: <strong>${order.total.toLocaleString()}₫</strong></p>
+      <p>Cảm ơn bạn đã mua hàng tại hệ thống của chúng tôi!</p>`
+    );
 
     logger.info(`[ORDER] Created order ${order._id} from cart for user ${userId}`);
     return baseResponse.createdResponse(res, order, "Tạo đơn hàng từ giỏ hàng thành công");
