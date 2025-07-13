@@ -103,6 +103,9 @@ export const createOrderSchema = Joi.object({
     "string.hex": "ID địa chỉ thanh toán không hợp lệ",
     "string.length": "ID địa chỉ thanh toán phải có độ dài 24 ký tự",
   }),
+  shipping_fee: Joi.number().min(0).optional().messages({
+    "number.min": "Phí vận chuyển không được nhỏ hơn 0",
+  }),
   payment_method: Joi.string().valid("cod", "banking", "zalopay", "momo").default("cod").optional(),
   note: Joi.string().trim().max(500).allow("").optional().messages({
     "string.max": "Ghi chú không được vượt quá 500 ký tự",

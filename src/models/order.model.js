@@ -209,12 +209,14 @@ const orderSchema = new mongoose.Schema(
     toJSON: {
       virtuals: true,
       transform: function (_, ret) {
-        // Convert Decimal128 to number for JSON response
         if (ret.subtotal) ret.subtotal = parseFloat(ret.subtotal.toString());
         if (ret.total) ret.total = parseFloat(ret.total.toString());
+        if (ret.shipping_fee) ret.shipping_fee = parseFloat(ret.shipping_fee.toString());
+
         if (ret.applied_coupon?.discount_amount) {
           ret.applied_coupon.discount_amount = parseFloat(ret.applied_coupon.discount_amount.toString());
         }
+
         ret.items.forEach((item) => {
           if (item.unit_price) item.unit_price = parseFloat(item.unit_price.toString());
           if (item.total_price) item.total_price = parseFloat(item.total_price.toString());
@@ -222,6 +224,7 @@ const orderSchema = new mongoose.Schema(
             item.selected_variant.price = parseFloat(item.selected_variant.price.toString());
           }
         });
+
         return ret;
       },
     },

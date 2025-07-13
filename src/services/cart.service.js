@@ -604,7 +604,6 @@ const applyCoupon = async (userId, couponCode) => {
 };
 
 // Xóa mã giảm giá
-// Xóa mã giảm giá
 const removeCoupon = async (userId) => {
   try {
     const cart = await getOrCreateCart(userId);
