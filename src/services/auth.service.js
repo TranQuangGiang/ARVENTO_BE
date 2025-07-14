@@ -77,7 +77,7 @@ const forgotPassword = async (email) => {
   if (!user) throw new Error("Email does not exist");
 
   const token = tokenService.generateTokens(user).accessToken;
-  await sendEmail(email, "Reset Password", `Click to reset your password: /reset-password?token=${token}`);
+  await sendEmail(email, "Reset Password", `Click to reset your password: http://localhost:5173/resetPassword?token=${token}`);
 };
 
 const resetPassword = async (token, newPassword) => {
