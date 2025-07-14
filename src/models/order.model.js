@@ -278,6 +278,8 @@ orderSchema.pre("save", function (next) {
       const discountAmount = parseFloat(this.applied_coupon.discount_amount.toString());
       totalValue = Math.max(0, subtotalValue - discountAmount);
     }
+    const shippingFee = parseFloat(this.shipping_fee?.toString() || "0");
+    totalValue += shippingFee;
 
     this.total = mongoose.Types.Decimal128.fromString(totalValue.toString());
 
