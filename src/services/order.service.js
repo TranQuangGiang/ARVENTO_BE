@@ -564,14 +564,15 @@ const allowedTransitions = {
   pending: ["confirmed", "cancelled"],
   confirmed: ["processing", "cancelled"],
   processing: ["shipping", "cancelled"],
-  shipping: ["delivered"],
-  delivered: ["completed", "returned"],
+  shipping: ["delivered", "returned"],
+  delivered: ["completed", "returning", "returned"],
+  returning: ["returned", "cancelled"],
+  returned: [],
   completed: [],
   cancelled: [],
-  returned: [],
 };
 
-const updateOrderStatus = async (orderId, newStatus, changedBy) => {
+const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isReturnRequested = undefined) => {
   const order = await Order.findById(orderId);
   if (!order) throw new Error("Không tìm thấy đơn hàng");
 
@@ -583,11 +584,46 @@ const updateOrderStatus = async (orderId, newStatus, changedBy) => {
   }
 
   order.status = newStatus;
+
+  if (typeof isReturnRequested === "boolean") {
+    order.is_return_requested = isReturnRequested;
+  }
+
   order.timeline ??= [];
   order.timeline.push({
     status: newStatus,
     changedBy,
+    note,
     changedAt: new Date(),
+  });
+
+  await order.save();
+  return order;
+};
+
+const clientRequestReturn = async (orderId, userId, note = "") => {
+  const order = await Order.findById(orderId);
+  if (!order) throw new Error("Không tìm thấy đơn hàng");
+
+  if (order.user.toString() !== userId.toString()) {
+    throw new Error("Bạn không có quyền thao tác đơn hàng này");
+  }
+
+  if (order.status !== "delivered") {
+    throw new Error("Chỉ có thể yêu cầu trả hàng sau khi đơn đã giao thành công");
+  }
+
+  if (order.is_return_requested) {
+    throw new Error("Bạn đã yêu cầu trả hàng trước đó");
+  }
+
+  order.is_return_requested = true;
+  order.timeline ??= [];
+  order.timeline.push({
+    status: order.status,
+    changedBy: userId,
+    changedAt: new Date(),
+    note: note || "Khách hàng yêu cầu trả hàng",
   });
 
   await order.save();
@@ -692,6 +728,7 @@ export default {
   // Admin functions
   getAllOrders,
   updateOrderStatus,
+  clientRequestReturn,
   addOrderTimeline,
   getOrderTimeline,
 

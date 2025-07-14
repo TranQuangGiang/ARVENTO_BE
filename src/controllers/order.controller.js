@@ -6,8 +6,9 @@ import { logger } from "../config/index.js";
 import {
   createOrderSchema,
   createOrderFromCartSchema,
-  updateOrderStatusSchema,
+  adminUpdateOrderStatusSchema,
   getOrdersQuerySchema,
+  clientUpdateOrderStatusSchema,
   // exportOrdersQuerySchema, revenueQuerySchema
 } from "../validations/order.validation.js";
 import { sendEmail } from "../utils/email.util.js";
@@ -210,20 +211,49 @@ const getAllOrders = async (req, res) => {
 
 const updateOrderStatus = async (req, res) => {
   try {
-    const { error, value } = updateOrderStatusSchema.validate(req.body, { abortEarly: false });
+    const { error, value } = adminUpdateOrderStatusSchema.validate(req.body, { abortEarly: false });
     if (error) {
       return baseResponse.badRequestResponse(res, null, error.details.map((e) => e.message).join(", "));
     }
 
     const { id } = req.params;
-    const { status, note } = value;
+    const { status, note, is_return_requested } = value;
     const changedBy = req.user._id;
 
-    const order = await orderService.updateOrderStatus(id, status, changedBy, note);
+    const order = await orderService.updateOrderStatus(id, status, changedBy, note, is_return_requested);
 
     return baseResponse.successResponse(res, order, "Cập nhật trạng thái đơn hàng thành công");
   } catch (err) {
     logger.error(`[ORDER] Cập nhật trạng thái đơn hàng thất bại: ${err.message}`, {
+      stack: err.stack,
+      orderId: req.params.id,
+      userId: req.user?._id,
+      body: req.body,
+    });
+
+    if (err.message.includes("Không tìm thấy")) {
+      return baseResponse.notFoundResponse(res, null, err.message);
+    }
+
+    return baseResponse.errorResponse(res, null, err.message);
+  }
+};
+const clientRequestReturn = async (req, res) => {
+  try {
+    const { error, value } = clientUpdateOrderStatusSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return baseResponse.badRequestResponse(res, null, error.details.map((e) => e.message).join(", "));
+    }
+
+    const { id } = req.params;
+    const { note } = value;
+    const userId = req.user._id;
+
+    const order = await orderService.clientRequestReturn(id, userId, note);
+
+    return baseResponse.successResponse(res, order, "Yêu cầu trả hàng đã được ghi nhận");
+  } catch (err) {
+    logger.error(`[ORDER] Client yêu cầu trả hàng lỗi: ${err.message}`, {
       stack: err.stack,
       orderId: req.params.id,
       userId: req.user?._id,
@@ -303,6 +333,7 @@ export default {
   // Admin functions
   getAllOrders,
   updateOrderStatus,
+  clientRequestReturn,
   getOrderTimeline,
 
   // Statistics and reporting

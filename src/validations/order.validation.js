@@ -114,17 +114,23 @@ export const createOrderSchema = Joi.object({
   address: Joi.object().optional(),
 });
 
-// Schema cho cập nhật trạng thái đơn hàng
-export const updateOrderStatusSchema = Joi.object({
-  status: Joi.string().valid("pending", "confirmed", "processing", "shipping", "delivered", "completed", "cancelled", "returned").required().messages({
+// Dành cho ADMIN — được update status đầy đủ
+export const adminUpdateOrderStatusSchema = Joi.object({
+  status: Joi.string().valid("pending", "confirmed", "processing", "shipping", "delivered", "completed", "cancelled", "returned", "returning").required().messages({
     "any.only": "Trạng thái không hợp lệ",
     "any.required": "Trạng thái là bắt buộc",
   }),
+  is_return_requested: Joi.boolean().optional(),
   note: Joi.string().trim().max(500).allow("").optional().messages({
     "string.max": "Ghi chú không được vượt quá 500 ký tự",
   }),
 });
 
+// Dành cho CLIENT — chỉ được yêu cầu trả hàng
+export const clientUpdateOrderStatusSchema = Joi.object({
+  is_return_requested: Joi.boolean().valid(true).required(),
+  note: Joi.string().trim().max(500).allow("").optional(),
+});
 // Schema cho query parameters khi lấy danh sách đơn hàng
 export const getOrdersQuerySchema = Joi.object({
   status: Joi.string().valid("pending", "confirmed", "processing", "shipping", "delivered", "completed", "cancelled", "returned").optional(),

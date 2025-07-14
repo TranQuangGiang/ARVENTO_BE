@@ -170,9 +170,10 @@ const orderSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "confirmed", "processing", "shipping", "delivered", "completed", "cancelled", "returned"],
+      enum: ["pending", "confirmed", "processing", "shipping", "delivered", "completed", "cancelled", "returned", "returning"],
       default: "pending",
     },
+    is_return_requested: { type: Boolean, default: false },
     note: {
       type: String,
       trim: true,
