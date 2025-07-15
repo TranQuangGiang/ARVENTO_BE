@@ -133,7 +133,7 @@ export const clientUpdateOrderStatusSchema = Joi.object({
 });
 // Schema cho query parameters khi lấy danh sách đơn hàng
 export const getOrdersQuerySchema = Joi.object({
-  status: Joi.string().valid("pending", "confirmed", "processing", "shipping", "delivered", "completed", "cancelled", "returned").optional(),
+  status: Joi.string().valid("pending", "confirmed", "processing", "shipping", "delivered", "completed", "cancelled", "returned", "returning").optional(),
   payment_status: Joi.string().valid("pending", "processing", "completed", "failed", "cancelled", "refunded").optional(),
   payment_method: Joi.string().valid("cod", "banking", "zalopay", "momo").optional(),
   user: Joi.string().hex().length(24).optional().messages({

@@ -67,7 +67,7 @@ const verifyToken = (token, type = tokenConstant.ACCESS) => {
       throw new Error("Invalid token type");
   }
 
-  return jwtUtils.verify(token, secret);
+  return jwtUtils.verifyToken(token, secret);
 };
 
 export default {

@@ -6,6 +6,7 @@ import cartService from "./cart.service.js";
 import logger from "../config/logger.config.js";
 import ExcelJS from "exceljs";
 import mongoose from "mongoose";
+import Roles from "../constants/role.enum.js";
 
 // Validate và kiểm tra tồn kho cho variant
 const validateOrderItem = async (item) => {
@@ -559,7 +560,7 @@ const getOrderTimeline = async (orderId) => {
   return order.timeline || [];
 };
 
-// Cập nhật trạng thái đơn hàng (admin)
+// Cập nhật trạng thái đơn hàng
 const allowedTransitions = {
   pending: ["confirmed", "cancelled"],
   confirmed: ["processing", "cancelled"],
@@ -571,16 +572,26 @@ const allowedTransitions = {
   completed: [],
   cancelled: [],
 };
-
-const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isReturnRequested = undefined) => {
+const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isReturnRequested = undefined, userRole = Roles.ADMIN, currentUserId = null) => {
   const order = await Order.findById(orderId);
   if (!order) throw new Error("Không tìm thấy đơn hàng");
 
   const currentStatus = order.status;
-  const allowedNext = allowedTransitions[currentStatus] || [];
 
-  if (!allowedNext.includes(newStatus)) {
-    throw new Error(`Không thể chuyển trạng thái từ "${currentStatus}" sang "${newStatus}"`);
+  if (userRole === Roles.ADMIN) {
+    const allowedNext = allowedTransitions[currentStatus] || [];
+    if (!allowedNext.includes(newStatus)) {
+      throw new Error(`Không thể chuyển trạng thái từ "${currentStatus}" sang "${newStatus}"`);
+    }
+  }
+
+  if (userRole === Roles.USER) {
+    if (!(currentStatus === "delivered" && newStatus === "completed")) {
+      throw new Error("Bạn không có quyền thực hiện hành động này");
+    }
+    if (!order.user.equals(currentUserId)) {
+      throw new Error("Bạn không có quyền thao tác đơn hàng này");
+    }
   }
 
   order.status = newStatus;
@@ -593,7 +604,7 @@ const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isRet
   order.timeline.push({
     status: newStatus,
     changedBy,
-    note,
+    note: note || (userRole === Roles.USER ? "Khách hàng xác nhận đã nhận hàng" : ""),
     changedAt: new Date(),
   });
 

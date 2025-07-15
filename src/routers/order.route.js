@@ -679,7 +679,24 @@ router.patch("/:id/cancel", authMiddleware.authenticateToken, orderController.ca
  *       500:
  *         description: Lỗi server
  */
-router.patch("/:id/status", authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), validate({ body: adminUpdateOrderStatusSchema }), orderController.updateOrderStatus);
+router.patch(
+  "/:id/status",
+  authMiddleware.authenticateToken,
+  async (req, res, next) => {
+    const role = req.user.role;
+    const { status: newStatus } = req.body;
+
+    if (role === Roles.ADMIN) return next();
+
+    if (role === Roles.USER && newStatus === "completed") {
+      return next();
+    }
+
+    return res.status(403).json({ message: "Bạn không có quyền cập nhật trạng thái đơn hàng" });
+  },
+  validate({ body: adminUpdateOrderStatusSchema }),
+  orderController.updateOrderStatus
+);
 
 /**
  * @swagger

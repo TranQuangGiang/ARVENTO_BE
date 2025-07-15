@@ -219,8 +219,9 @@ const updateOrderStatus = async (req, res) => {
     const { id } = req.params;
     const { status, note, is_return_requested } = value;
     const changedBy = req.user._id;
+    const role = req.user.role;
 
-    const order = await orderService.updateOrderStatus(id, status, changedBy, note, is_return_requested);
+    const order = await orderService.updateOrderStatus(id, status, changedBy, note, is_return_requested, role, changedBy);
 
     return baseResponse.successResponse(res, order, "Cập nhật trạng thái đơn hàng thành công");
   } catch (err) {
@@ -238,6 +239,7 @@ const updateOrderStatus = async (req, res) => {
     return baseResponse.errorResponse(res, null, err.message);
   }
 };
+
 const clientRequestReturn = async (req, res) => {
   try {
     const { error, value } = clientUpdateOrderStatusSchema.validate(req.body, { abortEarly: false });
