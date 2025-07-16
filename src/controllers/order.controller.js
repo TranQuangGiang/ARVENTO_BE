@@ -153,10 +153,10 @@ const getMyOrders = async (req, res) => {
 const getOrderDetail = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user._id;
+    // const userId = req.user._id;
 
     // Use service method with user restriction for regular users
-    const order = await orderService.getOrderDetail(id, userId);
+    const order = await orderService.getOrderDetail(id);
 
     return baseResponse.successResponse(res, order, "Lấy chi tiết đơn hàng thành công");
   } catch (err) {
@@ -195,6 +195,7 @@ const getAllOrders = async (req, res) => {
       user: req.query.user,
       dateFrom: req.query.dateFrom,
       dateTo: req.query.dateTo,
+      is_return_requested: req.query.is_return_requested,
     };
     const options = {
       page: parseInt(req.query.page) || 1,

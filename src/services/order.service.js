@@ -7,6 +7,7 @@ import logger from "../config/logger.config.js";
 import ExcelJS from "exceljs";
 import mongoose from "mongoose";
 import Roles from "../constants/role.enum.js";
+import { getCancelConfirmationEmailTemplate, getReturnRequestEmailTemplate, sendEmail } from "../utils/email.util.js";
 
 // Validate và kiểm tra tồn kho cho variant
 const validateOrderItem = async (item) => {
@@ -512,22 +513,45 @@ const cancelOrder = async (orderId, userId) => {
     throw error;
   }
 };
-const getAllOrders = async (filters = {}, options = {}) => {
-  // filters: { status, payment_status, payment_method, user, dateFrom, dateTo, ... }
-  // options: { page, limit, sort }
+export const getAllOrders = async (filters = {}, options = {}) => {
   const query = {};
-  if (filters.status) query.status = filters.status;
-  if (filters.payment_status) query.payment_status = filters.payment_status;
-  if (filters.payment_method) query.payment_method = filters.payment_method;
-  if (filters.user) query.user = filters.user;
-  if (filters.dateFrom || filters.dateTo) {
-    query.createdAt = {};
-    if (filters.dateFrom) query.createdAt.$gte = new Date(filters.dateFrom);
-    if (filters.dateTo) query.createdAt.$lte = new Date(filters.dateTo);
+
+  if (filters.status) {
+    query.status = filters.status;
   }
-  const page = options.page || 1;
-  const limit = options.limit || 20;
-  const sort = options.sort || { createdAt: -1 };
+
+  if (filters.payment_status) {
+    query.payment_status = filters.payment_status;
+  }
+
+  if (filters.payment_method) {
+    query.payment_method = filters.payment_method;
+  }
+
+  if (filters.user) {
+    query.user = filters.user;
+  }
+
+  if (filters.is_return_requested !== undefined) {
+    query.is_return_requested = filters.is_return_requested === "true";
+  }
+
+  if (filters.dateFrom || filters.dateTo) {
+    query.created_at = {};
+    if (filters.dateFrom) {
+      query.created_at.$gte = new Date(filters.dateFrom);
+    }
+    if (filters.dateTo) {
+      const toDate = new Date(filters.dateTo);
+      toDate.setHours(23, 59, 59, 999);
+      query.created_at.$lte = toDate;
+    }
+  }
+
+  const page = parseInt(options.page) || 1;
+  const limit = parseInt(options.limit) || 20;
+  const sort = options.sort || { created_at: -1 };
+
   const orders = await Order.find(query)
     .sort(sort)
     .skip((page - 1) * limit)
@@ -536,9 +560,17 @@ const getAllOrders = async (filters = {}, options = {}) => {
     .populate("items.product", "name slug images price")
     .populate("shipping_address", "name phone detail ward district province isDefault")
     .populate("billing_address", "name phone detail ward district province isDefault");
+
   const total = await Order.countDocuments(query);
-  return { orders, total, page, limit };
+
+  return {
+    orders,
+    total,
+    page,
+    limit,
+  };
 };
+
 // Lưu lịch sử trạng thái đơn hàng (timeline)
 const addOrderTimeline = async (orderId, status, changedBy) => {
   const order = await Order.findById(orderId);
@@ -612,11 +644,13 @@ const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isRet
   return order;
 };
 
-const clientRequestReturn = async (orderId, userId, note = "") => {
-  const order = await Order.findById(orderId);
+const ADMIN_EMAIL = "admin@gmail.com"; // có thể config vào .env
+
+export const clientRequestReturn = async (orderId, userId, note = "") => {
+  const order = await Order.findById(orderId).populate("user");
   if (!order) throw new Error("Không tìm thấy đơn hàng");
 
-  if (order.user.toString() !== userId.toString()) {
+  if (order.user._id.toString() !== userId.toString()) {
     throw new Error("Bạn không có quyền thao tác đơn hàng này");
   }
 
@@ -638,6 +672,26 @@ const clientRequestReturn = async (orderId, userId, note = "") => {
   });
 
   await order.save();
+
+  // Gửi email admin
+  const emailHtml = getReturnRequestEmailTemplate({
+    fullName: order.user.fullName || order.user.email,
+    orderId: order._id.toString(),
+    note,
+    createdAt: order.createdAt,
+  });
+
+  await sendEmail(ADMIN_EMAIL, `Yêu cầu trả hàng từ khách hàng ${order.user.fullName || order.user.email}`, emailHtml);
+
+  // Gửi email  khách hàng
+  const userEmailHtml = getCancelConfirmationEmailTemplate({
+    fullName: order.user.fullName || order.user.email,
+    orderId: order._id.toString(),
+    note,
+  });
+
+  await sendEmail(order.user.email, `Yêu cầu huỷ đơn hàng của bạn đã được ghi nhận`, userEmailHtml);
+
   return order;
 };
 
