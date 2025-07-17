@@ -57,3 +57,28 @@ export const getCancelConfirmationEmailTemplate = ({ fullName, orderId, note }) 
     </div>
   `;
 };
+
+export const getReturnApprovedEmailTemplate = ({ fullName, orderId, note, createdAt }) => {
+  return `
+    <div style="font-family: Arial, sans-serif; background-color: #f2f4f8; padding: 24px;">
+      <div style="max-width: 600px; margin: auto; background-color: #ffffff; padding: 24px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.05);">
+        <h2 style="color: #2e86de;">📦 Yêu cầu trả hàng của bạn đã được phê duyệt</h2>
+        <p>Xin chào <strong>${fullName}</strong>,</p>
+        <p>Chúng tôi đã xem xét và <strong>phê duyệt</strong> yêu cầu trả hàng của bạn cho đơn hàng <strong>#${orderId}</strong>.</p>
+
+        <p><strong>Ngày đặt hàng:</strong> ${new Date(createdAt).toLocaleString()}</p>
+        <p><strong>Ghi chú của bạn:</strong> ${note || "Không có ghi chú"}</p>
+
+        <hr style="margin: 24px 0;" />
+
+        <p>📬 Chúng tôi sẽ sớm liên hệ với bạn để hướng dẫn các bước tiếp theo trong quá trình trả hàng.</p>
+
+        <p style="color: #555;">Nếu bạn có bất kỳ câu hỏi nào, xin vui lòng liên hệ với bộ phận chăm sóc khách hàng.</p>
+
+        <p style="margin-top: 32px; font-size: 14px; color: #999;">
+          Đây là email tự động. Vui lòng không trả lời email này.
+        </p>
+      </div>
+    </div>
+  `;
+};

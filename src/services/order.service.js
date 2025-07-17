@@ -7,7 +7,7 @@ import logger from "../config/logger.config.js";
 import ExcelJS from "exceljs";
 import mongoose from "mongoose";
 import Roles from "../constants/role.enum.js";
-import { getCancelConfirmationEmailTemplate, getReturnRequestEmailTemplate, sendEmail } from "../utils/email.util.js";
+import { getCancelConfirmationEmailTemplate, getReturnApprovedEmailTemplate, getReturnRequestEmailTemplate, sendEmail } from "../utils/email.util.js";
 
 // Validate và kiểm tra tồn kho cho variant
 const validateOrderItem = async (item) => {
@@ -641,10 +641,24 @@ const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isRet
   });
 
   await order.save();
+  if (userRole === Roles.ADMIN && currentStatus !== "returning" && newStatus === "returning" && order.user?.email) {
+    try {
+      const html = getReturnApprovedEmailTemplate({
+        fullName: order.user.fullName || "Khách hàng",
+        orderId: order._id,
+        note,
+        createdAt: order.createdAt,
+      });
+
+      await sendEmail(order.user.email, " Yêu cầu trả hàng đã được phê duyệt", html);
+    } catch (err) {
+      console.error("[EMAIL] Gửi thông báo phê duyệt trả hàng thất bại:", err);
+    }
+  }
   return order;
 };
 
-const ADMIN_EMAIL = "admin@gmail.com"; // có thể config vào .env
+const ADMIN_EMAIL = "quanggiang69.dev@gmail.com";
 
 export const clientRequestReturn = async (orderId, userId, note = "") => {
   const order = await Order.findById(orderId).populate("user");
