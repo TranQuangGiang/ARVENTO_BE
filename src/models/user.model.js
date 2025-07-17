@@ -32,6 +32,16 @@ const userSchema = new mongoose.Schema(
       enum: ["user", "admin"],
       default: "admin",
     },
+    current_tier: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "MembershipTier",
+      default: null,
+    },
+    total_spending: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
   {
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" },
