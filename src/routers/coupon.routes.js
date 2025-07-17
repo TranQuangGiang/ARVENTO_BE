@@ -67,7 +67,6 @@ router.post(
  */
 router.get(
   '/admin/coupons',
-  authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),
   couponController.getAllCoupons
 );
 
@@ -98,7 +97,6 @@ router.get(
 
 router.get(
   '/admin/coupons/:id',
-  authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),
   couponController.getCouponDetail
 );
 
@@ -249,7 +247,7 @@ router.post(
  */
 router.get(
   '/:id/usage-history',
-  authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN),
+  authMiddleware.authenticateToken,
   couponController.getUsageHistory
 );
 /**
