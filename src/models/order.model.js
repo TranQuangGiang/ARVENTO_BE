@@ -139,6 +139,11 @@ const orderSchema = new mongoose.Schema(
         default: "percentage",
       },
     },
+     applied_point_discount: {
+      type: mongoose.Types.Decimal128,
+      default: 0,
+      min: 0,
+    },
     total: {
       type: mongoose.Types.Decimal128,
       required: [true, "Tổng tiền là bắt buộc"],
@@ -320,5 +325,44 @@ orderSchema.methods.addTimelineEntry = function (status, changedBy, note) {
   });
   return this.save();
 };
+// Pre-save middleware
+orderSchema.pre("save", function (next) {
+  try {
+    this.updated_at = new Date();
+
+    // Tính subtotal
+    const subtotalValue = this.items.reduce((sum, item) => {
+      const itemTotal = parseFloat(item.total_price?.toString() || "0");
+      return sum + itemTotal;
+    }, 0);
+
+    this.subtotal = mongoose.Types.Decimal128.fromString(subtotalValue.toString());
+
+    // Áp dụng giảm từ điểm thưởng
+    const pointDiscount = parseFloat(this.applied_point_discount?.toString() || "0");
+
+    let totalValue = subtotalValue - pointDiscount;
+
+    if (this.applied_coupon?.discount_amount) {
+      const discountAmount = parseFloat(this.applied_coupon.discount_amount.toString());
+      totalValue -= discountAmount;
+    }
+
+    this.total = mongoose.Types.Decimal128.fromString(Math.max(0, totalValue).toString());
+
+    // timeline logic giữ nguyên
+    if (this.isModified("status") && !this.isNew) {
+      if (!this.timeline) this.timeline = [];
+      this.timeline.push({
+        status: this.status,
+        changedAt: new Date(),
+      });
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
 export default mongoose.model("Order", orderSchema);
