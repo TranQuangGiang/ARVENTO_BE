@@ -605,7 +605,7 @@ const allowedTransitions = {
   cancelled: [],
 };
 const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isReturnRequested = undefined, userRole = Roles.ADMIN, currentUserId = null) => {
-  const order = await Order.findById(orderId);
+  const order = await Order.findById(orderId).populate("user");
   if (!order) throw new Error("Không tìm thấy đơn hàng");
 
   const currentStatus = order.status;
