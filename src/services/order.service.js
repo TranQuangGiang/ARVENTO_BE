@@ -454,9 +454,6 @@ const cancelOrder = async (orderId, userId, note) => {
       changedAt: new Date(),
     });
 
-    // Add timeline entry
-    await order.addTimelineEntry("cancelled", userId, "Đơn hàng đã được hủy bởi khách hàng");
-
     // Restore stock for all items
     const stockUpdates = [];
     for (const item of order.items) {
