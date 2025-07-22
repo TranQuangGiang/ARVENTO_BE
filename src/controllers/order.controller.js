@@ -178,7 +178,8 @@ const cancelOrder = async (req, res) => {
   try {
     const user = req.user._id;
     const { id } = req.params;
-    const order = await orderService.cancelOrder(id, user);
+    const note = req.note;
+    const order = await orderService.cancelOrder(id, user, note);
     return baseResponse.successResponse(res, order, "Hủy đơn hàng thành công");
   } catch (err) {
     logger.error(`[ORDER] Hủy đơn hàng thất bại: ${err.message}`);

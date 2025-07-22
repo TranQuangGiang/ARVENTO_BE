@@ -420,7 +420,7 @@ const getOrderDetail = async (id, userId = null) => {
   }
 };
 
-const cancelOrder = async (orderId, userId) => {
+const cancelOrder = async (orderId, userId, note) => {
   try {
     const order = await Order.findById(orderId);
     if (!order) {
@@ -445,6 +445,14 @@ const cancelOrder = async (orderId, userId) => {
     // Update order status
     order.status = "cancelled";
     order.payment_status = "cancelled";
+
+    order.timeline ??= [];
+    order.timeline.push({
+      status: "cancelled",
+      changedBy: userId,
+      note: note || "Đơn hàng đã được hủy bởi khách hàng",
+      changedAt: new Date(),
+    });
 
     // Add timeline entry
     await order.addTimelineEntry("cancelled", userId, "Đơn hàng đã được hủy bởi khách hàng");
