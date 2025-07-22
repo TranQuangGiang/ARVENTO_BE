@@ -512,6 +512,7 @@ const cancelOrder = async (orderId, userId, note) => {
     await Promise.all(stockUpdates);
 
     logger.info(`[ORDER] Successfully cancelled order ${orderId} and restored stock`);
+    await order.save();
     return order;
   } catch (error) {
     logger.error(`[ORDER] Error cancelling order ${orderId}: ${error.message}`);
