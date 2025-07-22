@@ -82,3 +82,18 @@ export const getReturnApprovedEmailTemplate = ({ fullName, orderId, note, create
     </div>
   `;
 };
+
+export const getOrderStatusChangedEmailTemplate = ({ fullName, orderId, newStatus, note, changedAt }) => {
+  return `
+    <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #eef2f7;">
+      <h2 style="color: #007bff;">🔔 Cập nhật trạng thái đơn hàng</h2>
+      <p>Xin chào <strong>${fullName}</strong>,</p>
+      <p>Đơn hàng <strong>#${orderId}</strong> của bạn vừa được cập nhật trạng thái:</p>
+      <p><strong>Trạng thái mới:</strong> ${newStatus}</p>
+      <p><strong>Thời gian:</strong> ${new Date(changedAt).toLocaleString()}</p>
+      <p><strong>Ghi chú:</strong> ${note || "Không có ghi chú"}</p>
+      <hr />
+      <p style="font-size: 14px; color: #666;">Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi!</p>
+    </div>
+  `;
+};

@@ -7,7 +7,7 @@ import logger from "../config/logger.config.js";
 import ExcelJS from "exceljs";
 import mongoose from "mongoose";
 import Roles from "../constants/role.enum.js";
-import { getCancelConfirmationEmailTemplate, getReturnApprovedEmailTemplate, getReturnRequestEmailTemplate, sendEmail } from "../utils/email.util.js";
+import { getCancelConfirmationEmailTemplate, getOrderStatusChangedEmailTemplate, getReturnApprovedEmailTemplate, getReturnRequestEmailTemplate, sendEmail } from "../utils/email.util.js";
 
 // Validate và kiểm tra tồn kho cho variant
 const validateOrderItem = async (item) => {
@@ -610,6 +610,7 @@ const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isRet
 
   const currentStatus = order.status;
 
+  // Kiểm tra quyền cập nhật theo role
   if (userRole === Roles.ADMIN) {
     const allowedNext = allowedTransitions[currentStatus] || [];
     if (!allowedNext.includes(newStatus)) {
@@ -626,6 +627,7 @@ const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isRet
     }
   }
 
+  // Cập nhật trạng thái đơn hàng
   order.status = newStatus;
 
   if (typeof isReturnRequested === "boolean") {
@@ -641,20 +643,36 @@ const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isRet
   });
 
   await order.save();
-  if (userRole === Roles.ADMIN && currentStatus !== "returning" && newStatus === "returning" && order.user?.email) {
-    try {
-      const html = getReturnApprovedEmailTemplate({
-        fullName: order.user.fullName || "Khách hàng",
-        orderId: order._id,
-        note,
-        createdAt: order.createdAt,
-      });
 
-      await sendEmail(order.user.email, " Yêu cầu trả hàng đã được phê duyệt", html);
+  if (order.user?.email) {
+    try {
+      let html, subject;
+
+      if (userRole === Roles.ADMIN && currentStatus !== "returning" && newStatus === "returning") {
+        html = getReturnApprovedEmailTemplate({
+          fullName: order.user.fullName || "Khách hàng",
+          orderId: order._id,
+          note,
+          createdAt: order.createdAt,
+        });
+        subject = "📦 Yêu cầu trả hàng đã được phê duyệt";
+      } else {
+        html = getOrderStatusChangedEmailTemplate({
+          fullName: order.user.fullName || "Khách hàng",
+          orderId: order._id,
+          newStatus,
+          note,
+          changedAt: new Date(),
+        });
+        subject = `🔔 Đơn hàng #${order._id} đã chuyển sang trạng thái "${newStatus}"`;
+      }
+
+      await sendEmail(order.user.email, subject, html);
     } catch (err) {
-      console.error("[EMAIL] Gửi thông báo phê duyệt trả hàng thất bại:", err);
+      console.error("[EMAIL] Gửi email cập nhật trạng thái thất bại:", err);
     }
   }
+
   return order;
 };
 
@@ -675,6 +693,7 @@ export const clientRequestReturn = async (orderId, userId, note = "") => {
   if (order.is_return_requested) {
     throw new Error("Bạn đã yêu cầu trả hàng trước đó");
   }
+  const isNoteEmpty = !note || note.trim() === "";
 
   order.is_return_requested = true;
   order.timeline ??= [];
@@ -682,7 +701,7 @@ export const clientRequestReturn = async (orderId, userId, note = "") => {
     status: order.status,
     changedBy: userId,
     changedAt: new Date(),
-    note: note || "Khách hàng yêu cầu trả hàng",
+    note: isNoteEmpty ? "Khách hàng yêu cầu trả hàng" : note,
   });
 
   await order.save();
