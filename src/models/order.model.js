@@ -265,44 +265,44 @@ orderSchema.index({ "items.product": 1 });
 orderSchema.index({ payment_status: 1 });
 orderSchema.index({ shipping_address: 1 });
 
-// Pre-save middleware để tự động cập nhật totals
-orderSchema.pre("save", function (next) {
-  try {
-    this.updated_at = new Date();
+// // Pre-save middleware để tự động cập nhật totals
+// orderSchema.pre("save", function (next) {
+//   try {
+//     this.updated_at = new Date();
 
-    // Tính toán subtotal từ các items
-    const subtotalValue = this.items.reduce((sum, item) => {
-      const itemTotal = parseFloat(item.total_price?.toString() || "0");
-      return sum + itemTotal;
-    }, 0);
+//     // Tính toán subtotal từ các items
+//     const subtotalValue = this.items.reduce((sum, item) => {
+//       const itemTotal = parseFloat(item.total_price?.toString() || "0");
+//       return sum + itemTotal;
+//     }, 0);
 
-    this.subtotal = mongoose.Types.Decimal128.fromString(subtotalValue.toString());
+//     this.subtotal = mongoose.Types.Decimal128.fromString(subtotalValue.toString());
 
-    // Tính toán total sau khi áp dụng coupon
-    let totalValue = subtotalValue;
-    if (this.applied_coupon?.discount_amount) {
-      const discountAmount = parseFloat(this.applied_coupon.discount_amount.toString());
-      totalValue = Math.max(0, subtotalValue - discountAmount);
-    }
-    const shippingFee = parseFloat(this.shipping_fee?.toString() || "0");
-    totalValue += shippingFee;
+//     // Tính toán total sau khi áp dụng coupon
+//     let totalValue = subtotalValue;
+//     if (this.applied_coupon?.discount_amount) {
+//       const discountAmount = parseFloat(this.applied_coupon.discount_amount.toString());
+//       totalValue = Math.max(0, subtotalValue - discountAmount);
+//     }
+//     const shippingFee = parseFloat(this.shipping_fee?.toString() || "0");
+//     totalValue += shippingFee;
 
-    this.total = mongoose.Types.Decimal128.fromString(totalValue.toString());
+//     this.total = mongoose.Types.Decimal128.fromString(totalValue.toString());
 
-    // Add timeline entry if status changed
-    if (this.isModified("status") && !this.isNew) {
-      if (!this.timeline) this.timeline = [];
-      this.timeline.push({
-        status: this.status,
-        changedAt: new Date(),
-      });
-    }
+//     // Add timeline entry if status changed
+//     if (this.isModified("status") && !this.isNew) {
+//       if (!this.timeline) this.timeline = [];
+//       this.timeline.push({
+//         status: this.status,
+//         changedAt: new Date(),
+//       });
+//     }
 
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
+//     next();
+//   } catch (error) {
+//     next(error);
+//   }
+// });
 
 // Static methods
 orderSchema.statics.findByUser = function (userId) {
@@ -326,16 +326,16 @@ orderSchema.methods.canBeModified = function () {
   return ["pending"].includes(this.status);
 };
 
-orderSchema.methods.addTimelineEntry = function (status, changedBy, note) {
-  if (!this.timeline) this.timeline = [];
-  this.timeline.push({
-    status,
-    changedBy,
-    changedAt: new Date(),
-    note,
-  });
-  return this.save();
-};
+// orderSchema.methods.addTimelineEntry = function (status, changedBy, note) {
+//   if (!this.timeline) this.timeline = [];
+//   this.timeline.push({
+//     status,
+//     changedBy,
+//     changedAt: new Date(),
+//     note,
+//   });
+//   return this.save();
+// };
 // // Pre-save middleware
 // orderSchema.pre("save", function (next) {
 //   try {
