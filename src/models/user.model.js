@@ -23,6 +23,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       maxLength: 20,
     },
+    verified: {
+      type: Boolean,
+      default: false,
+    },
     role: {
       type: String,
       enum: ["user", "admin"],

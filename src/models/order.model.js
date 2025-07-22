@@ -158,6 +158,11 @@ const orderSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Address",
     },
+    shipping_fee: {
+      type: mongoose.Types.Decimal128,
+      default: 0,
+      min: 0,
+    },
     payment_method: {
       type: String,
       enum: ["cod", "banking", "zalopay", "momo"],
@@ -170,9 +175,10 @@ const orderSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "confirmed", "processing", "shipping", "delivered", "completed", "cancelled", "returned"],
+      enum: ["pending", "confirmed", "processing", "shipping", "delivered", "completed", "cancelled", "returned", "returning"],
       default: "pending",
     },
+    is_return_requested: { type: Boolean, default: false },
     note: {
       type: String,
       trim: true,
@@ -209,12 +215,14 @@ const orderSchema = new mongoose.Schema(
     toJSON: {
       virtuals: true,
       transform: function (_, ret) {
-        // Convert Decimal128 to number for JSON response
         if (ret.subtotal) ret.subtotal = parseFloat(ret.subtotal.toString());
         if (ret.total) ret.total = parseFloat(ret.total.toString());
+        if (ret.shipping_fee) ret.shipping_fee = parseFloat(ret.shipping_fee.toString());
+
         if (ret.applied_coupon?.discount_amount) {
           ret.applied_coupon.discount_amount = parseFloat(ret.applied_coupon.discount_amount.toString());
         }
+
         ret.items.forEach((item) => {
           if (item.unit_price) item.unit_price = parseFloat(item.unit_price.toString());
           if (item.total_price) item.total_price = parseFloat(item.total_price.toString());
@@ -222,6 +230,7 @@ const orderSchema = new mongoose.Schema(
             item.selected_variant.price = parseFloat(item.selected_variant.price.toString());
           }
         });
+
         return ret;
       },
     },
@@ -275,6 +284,8 @@ orderSchema.pre("save", function (next) {
       const discountAmount = parseFloat(this.applied_coupon.discount_amount.toString());
       totalValue = Math.max(0, subtotalValue - discountAmount);
     }
+    const shippingFee = parseFloat(this.shipping_fee?.toString() || "0");
+    totalValue += shippingFee;
 
     this.total = mongoose.Types.Decimal128.fromString(totalValue.toString());
 

@@ -3,7 +3,7 @@ import orderController from "../controllers/order.controller.js";
 import { authMiddleware } from "../middlewares/index.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import Roles from "../constants/role.enum.js";
-import { createOrderSchema, createOrderFromCartSchema, updateOrderStatusSchema, getOrdersQuerySchema } from "../validations/order.validation.js";
+import { createOrderSchema, createOrderFromCartSchema, adminUpdateOrderStatusSchema, getOrdersQuerySchema } from "../validations/order.validation.js";
 
 const router = express.Router();
 
@@ -679,7 +679,86 @@ router.patch("/:id/cancel", authMiddleware.authenticateToken, orderController.ca
  *       500:
  *         description: Lỗi server
  */
-router.patch("/:id/status", authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), validate({ body: updateOrderStatusSchema }), orderController.updateOrderStatus);
+router.patch(
+  "/:id/status",
+  authMiddleware.authenticateToken,
+  async (req, res, next) => {
+    const role = req.user.role;
+    const { status: newStatus } = req.body;
+
+    if (role === Roles.ADMIN) return next();
+
+    if (role === Roles.USER && newStatus === "completed") {
+      return next();
+    }
+
+    return res.status(403).json({ message: "Bạn không có quyền cập nhật trạng thái đơn hàng" });
+  },
+  validate({ body: adminUpdateOrderStatusSchema }),
+  orderController.updateOrderStatus
+);
+
+/**
+ * @swagger
+ * /orders/{id}/request-return:
+ *   patch:
+ *     summary: Khách hàng yêu cầu trả hàng
+ *     tags: [Order]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của đơn hàng
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - is_return_requested
+ *             properties:
+ *               is_return_requested:
+ *                 type: boolean
+ *                 enum: [true]
+ *                 description: Bắt buộc phải là true
+ *               note:
+ *                 type: string
+ *                 maxLength: 500
+ *                 description: Lý do trả hàng hoặc ghi chú của khách hàng
+ *           example:
+ *             is_return_requested: true
+ *             note: "Sản phẩm bị lỗi, cần hoàn trả"
+ *     responses:
+ *       200:
+ *         description: Yêu cầu trả hàng đã được ghi nhận
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   $ref: '#/components/schemas/Order'
+ *       400:
+ *         description: Dữ liệu không hợp lệ hoặc đơn hàng chưa được giao
+ *       401:
+ *         description: Chưa đăng nhập
+ *       403:
+ *         description: Không có quyền thao tác với đơn hàng này
+ *       404:
+ *         description: Không tìm thấy đơn hàng
+ *       500:
+ *         description: Lỗi server
+ */
+router.patch("/:id/request-return", authMiddleware.authenticateToken, orderController.clientRequestReturn);
 
 /**
  * @swagger

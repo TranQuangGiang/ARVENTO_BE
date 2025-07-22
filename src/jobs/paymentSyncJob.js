@@ -1,6 +1,6 @@
-import cron from 'node-cron';
-import paymentSyncService from '../services/paymentSync.service.js';
-import { logger } from '../config/index.js';
+import cron from "node-cron";
+import paymentSyncService from "../services/paymentSync.service.js";
+import { logger } from "../config/index.js";
 
 /**
  * Payment Sync Cron Jobs
@@ -18,74 +18,102 @@ class PaymentSyncJob {
    */
   start() {
     if (this.isRunning) {
-      logger.warn('[PAYMENT_SYNC_JOB] Jobs already running');
+      logger.warn("[PAYMENT_SYNC_JOB] Jobs already running");
       return;
     }
 
-    logger.info('[PAYMENT_SYNC_JOB] Starting payment sync jobs');
+    logger.info("[PAYMENT_SYNC_JOB] Starting payment sync jobs");
 
     // Job 1: Sync pending payments every 5 minutes
-    this.jobs.set('syncPending', cron.schedule('*/5 * * * *', async () => {
-      try {
-        logger.info('[PAYMENT_SYNC_JOB] Running pending payments sync');
-        await paymentSyncService.syncPendingPayments();
-      } catch (error) {
-        logger.error(`[PAYMENT_SYNC_JOB] Pending sync failed: ${error.message}`);
-      }
-    }, {
-      scheduled: false,
-      timezone: 'Asia/Ho_Chi_Minh'
-    }));
+    this.jobs.set(
+      "syncPending",
+      cron.schedule(
+        "*/5 * * * *",
+        async () => {
+          try {
+            logger.info("[PAYMENT_SYNC_JOB] Running pending payments sync");
+            await paymentSyncService.syncPendingPayments();
+          } catch (error) {
+            logger.error(`[PAYMENT_SYNC_JOB] Pending sync failed: ${error.message}`);
+          }
+        },
+        {
+          scheduled: false,
+          timezone: "Asia/Ho_Chi_Minh",
+        }
+      )
+    );
 
     // Job 2: Handle expired payments every 30 minutes
-    this.jobs.set('handleExpired', cron.schedule('*/30 * * * *', async () => {
-      try {
-        logger.info('[PAYMENT_SYNC_JOB] Running expired payments check');
-        const expiredCount = await paymentSyncService.handleExpiredPayments();
-        logger.info(`[PAYMENT_SYNC_JOB] Handled ${expiredCount} expired payments`);
-      } catch (error) {
-        logger.error(`[PAYMENT_SYNC_JOB] Expired payments check failed: ${error.message}`);
-      }
-    }, {
-      scheduled: false,
-      timezone: 'Asia/Ho_Chi_Minh'
-    }));
+    this.jobs.set(
+      "handleExpired",
+      cron.schedule(
+        "*/30 * * * *",
+        async () => {
+          try {
+            logger.info("[PAYMENT_SYNC_JOB] Running expired payments check");
+            const expiredCount = await paymentSyncService.handleExpiredPayments();
+            logger.info(`[PAYMENT_SYNC_JOB] Handled ${expiredCount} expired payments`);
+          } catch (error) {
+            logger.error(`[PAYMENT_SYNC_JOB] Expired payments check failed: ${error.message}`);
+          }
+        },
+        {
+          scheduled: false,
+          timezone: "Asia/Ho_Chi_Minh",
+        }
+      )
+    );
 
     // Job 3: Daily reconciliation at 2 AM
-    this.jobs.set('dailyReconciliation', cron.schedule('0 2 * * *', async () => {
-      try {
-        logger.info('[PAYMENT_SYNC_JOB] Running daily payment reconciliation');
-        
-        // Reconcile payments from yesterday
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        yesterday.setHours(0, 0, 0, 0);
-        
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        const results = await paymentSyncService.reconcilePayments(yesterday, today);
-        logger.info(`[PAYMENT_SYNC_JOB] Daily reconciliation completed: ${JSON.stringify(results)}`);
-      } catch (error) {
-        logger.error(`[PAYMENT_SYNC_JOB] Daily reconciliation failed: ${error.message}`);
-      }
-    }, {
-      scheduled: false,
-      timezone: 'Asia/Ho_Chi_Minh'
-    }));
+    this.jobs.set(
+      "dailyReconciliation",
+      cron.schedule(
+        "0 2 * * *",
+        async () => {
+          try {
+            logger.info("[PAYMENT_SYNC_JOB] Running daily payment reconciliation");
+
+            // Reconcile payments from yesterday
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            yesterday.setHours(0, 0, 0, 0);
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const results = await paymentSyncService.reconcilePayments(yesterday, today);
+            logger.info(`[PAYMENT_SYNC_JOB] Daily reconciliation completed: ${JSON.stringify(results)}`);
+          } catch (error) {
+            logger.error(`[PAYMENT_SYNC_JOB] Daily reconciliation failed: ${error.message}`);
+          }
+        },
+        {
+          scheduled: false,
+          timezone: "Asia/Ho_Chi_Minh",
+        }
+      )
+    );
 
     // Job 4: Health check every hour
-    this.jobs.set('healthCheck', cron.schedule('0 * * * *', async () => {
-      try {
-        logger.info('[PAYMENT_SYNC_JOB] Running payment system health check');
-        await this.performHealthCheck();
-      } catch (error) {
-        logger.error(`[PAYMENT_SYNC_JOB] Health check failed: ${error.message}`);
-      }
-    }, {
-      scheduled: false,
-      timezone: 'Asia/Ho_Chi_Minh'
-    }));
+    this.jobs.set(
+      "healthCheck",
+      cron.schedule(
+        "0 * * * *",
+        async () => {
+          try {
+            logger.info("[PAYMENT_SYNC_JOB] Running payment system health check");
+            await this.performHealthCheck();
+          } catch (error) {
+            logger.error(`[PAYMENT_SYNC_JOB] Health check failed: ${error.message}`);
+          }
+        },
+        {
+          scheduled: false,
+          timezone: "Asia/Ho_Chi_Minh",
+        }
+      )
+    );
 
     // Start all jobs
     this.jobs.forEach((job, name) => {
@@ -94,7 +122,7 @@ class PaymentSyncJob {
     });
 
     this.isRunning = true;
-    logger.info('[PAYMENT_SYNC_JOB] All payment sync jobs started successfully');
+    logger.info("[PAYMENT_SYNC_JOB] All payment sync jobs started successfully");
   }
 
   /**
@@ -102,11 +130,11 @@ class PaymentSyncJob {
    */
   stop() {
     if (!this.isRunning) {
-      logger.warn('[PAYMENT_SYNC_JOB] Jobs not running');
+      logger.warn("[PAYMENT_SYNC_JOB] Jobs not running");
       return;
     }
 
-    logger.info('[PAYMENT_SYNC_JOB] Stopping payment sync jobs');
+    logger.info("[PAYMENT_SYNC_JOB] Stopping payment sync jobs");
 
     this.jobs.forEach((job, name) => {
       job.stop();
@@ -115,7 +143,7 @@ class PaymentSyncJob {
 
     this.jobs.clear();
     this.isRunning = false;
-    logger.info('[PAYMENT_SYNC_JOB] All payment sync jobs stopped');
+    logger.info("[PAYMENT_SYNC_JOB] All payment sync jobs stopped");
   }
 
   /**
@@ -125,7 +153,7 @@ class PaymentSyncJob {
     return {
       isRunning: this.isRunning,
       jobCount: this.jobs.size,
-      jobs: Array.from(this.jobs.keys())
+      jobs: Array.from(this.jobs.keys()),
     };
   }
 
@@ -137,25 +165,26 @@ class PaymentSyncJob {
       logger.info(`[PAYMENT_SYNC_JOB] Manually triggering job: ${jobName}`);
 
       switch (jobName) {
-        case 'syncPending':
+        case "syncPending":
           return await paymentSyncService.syncPendingPayments();
-        
-        case 'handleExpired':
+
+        case "handleExpired":
           return await paymentSyncService.handleExpiredPayments();
-        
-        case 'dailyReconciliation':
+
+        case "dailyReconciliation": {
           const yesterday = new Date();
           yesterday.setDate(yesterday.getDate() - 1);
           yesterday.setHours(0, 0, 0, 0);
-          
+
           const today = new Date();
           today.setHours(0, 0, 0, 0);
-          
+
           return await paymentSyncService.reconcilePayments(yesterday, today);
-        
-        case 'healthCheck':
+        }
+
+        case "healthCheck":
           return await this.performHealthCheck();
-        
+
         default:
           throw new Error(`Unknown job: ${jobName}`);
       }
@@ -170,26 +199,26 @@ class PaymentSyncJob {
    */
   async performHealthCheck() {
     try {
-      const Payment = (await import('../models/payment.model.js')).default;
-      
+      const Payment = (await import("../models/payment.model.js")).default;
+
       // Check for stuck payments (pending for more than 1 hour)
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
       const stuckPayments = await Payment.countDocuments({
-        status: { $in: ['pending', 'processing'] },
+        status: { $in: ["pending", "processing"] },
         createdAt: { $lt: oneHourAgo },
-        method: { $in: ['zalopay', 'momo'] }
+        method: { $in: ["zalopay", "momo"] },
       });
 
       // Check for failed payments in last hour
       const failedPayments = await Payment.countDocuments({
-        status: 'failed',
-        updatedAt: { $gte: oneHourAgo }
+        status: "failed",
+        updatedAt: { $gte: oneHourAgo },
       });
 
       // Check for successful payments in last hour
       const successfulPayments = await Payment.countDocuments({
-        status: 'completed',
-        updatedAt: { $gte: oneHourAgo }
+        status: "completed",
+        updatedAt: { $gte: oneHourAgo },
       });
 
       const healthStatus = {
@@ -197,7 +226,7 @@ class PaymentSyncJob {
         stuckPayments,
         failedPayments,
         successfulPayments,
-        status: stuckPayments > 10 ? 'warning' : 'healthy'
+        status: stuckPayments > 10 ? "warning" : "healthy",
       };
 
       logger.info(`[PAYMENT_SYNC_JOB] Health check: ${JSON.stringify(healthStatus)}`);
@@ -220,32 +249,32 @@ class PaymentSyncJob {
    */
   async getStatistics() {
     try {
-      const Payment = (await import('../models/payment.model.js')).default;
-      
+      const Payment = (await import("../models/payment.model.js")).default;
+
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       const stats = await Payment.aggregate([
         {
           $match: {
-            createdAt: { $gte: today }
-          }
+            createdAt: { $gte: today },
+          },
         },
         {
           $group: {
             _id: {
-              method: '$method',
-              status: '$status'
+              method: "$method",
+              status: "$status",
             },
             count: { $sum: 1 },
-            totalAmount: { $sum: '$amount' }
-          }
-        }
+            totalAmount: { $sum: "$amount" },
+          },
+        },
       ]);
 
       return {
         date: today,
-        statistics: stats
+        statistics: stats,
       };
     } catch (error) {
       logger.error(`[PAYMENT_SYNC_JOB] Statistics error: ${error.message}`);

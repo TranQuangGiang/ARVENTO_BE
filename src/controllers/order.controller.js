@@ -6,10 +6,12 @@ import { logger } from "../config/index.js";
 import {
   createOrderSchema,
   createOrderFromCartSchema,
-  updateOrderStatusSchema,
+  adminUpdateOrderStatusSchema,
   getOrdersQuerySchema,
+  clientUpdateOrderStatusSchema,
   // exportOrdersQuerySchema, revenueQuerySchema
 } from "../validations/order.validation.js";
+import { sendEmail } from "../utils/email.util.js";
 
 // Helper function to parse sort parameter
 const parseSortParam = (sortParam) => {
@@ -35,7 +37,7 @@ const parseSortParam = (sortParam) => {
     return { createdAt: -1 };
   }
 };
-// Tạo đơn hàng mới với cấu trúc chi tiết
+// Tạo đơn hàng mới(chọn từ giỏ hàng)
 const createOrder = async (req, res) => {
   try {
     const { error, value } = createOrderSchema.validate(req.body, { abortEarly: false });
@@ -45,6 +47,15 @@ const createOrder = async (req, res) => {
 
     const user = req.user._id;
     const order = await orderService.createOrder({ user, ...value });
+
+    await sendEmail(
+      req.user.email,
+      "Xác nhận đơn hàng",
+      `<p>Chào ${req.user.name || "bạn"},</p>
+      <p>Chúng tôi đã nhận được đơn hàng <strong>#${order._id}</strong>.</p>
+      <p>Tổng tiền: <strong>${order.total.toLocaleString()}₫</strong></p>
+      <p>Cảm ơn bạn đã mua hàng tại hệ thống của chúng tôi!</p>`
+    );
 
     logger.info(`[ORDER] Created order ${order._id} for user ${user}`);
     return baseResponse.createdResponse(res, order, "Tạo đơn hàng thành công");
@@ -83,6 +94,15 @@ const createOrderFromCart = async (req, res) => {
 
     const userId = req.user._id;
     const order = await orderService.createOrderFromCart(userId, value);
+
+    await sendEmail(
+      req.user.email,
+      "Xác nhận đơn hàng",
+      `<p>Chào ${req.user.name || "bạn"},</p>
+      <p>Chúng tôi đã nhận được đơn hàng <strong>#${order._id}</strong>.</p>
+      <p>Tổng tiền: <strong>${order.total.toLocaleString()}₫</strong></p>
+      <p>Cảm ơn bạn đã mua hàng tại hệ thống của chúng tôi!</p>`
+    );
 
     logger.info(`[ORDER] Created order ${order._id} from cart for user ${userId}`);
     return baseResponse.createdResponse(res, order, "Tạo đơn hàng từ giỏ hàng thành công");
@@ -133,10 +153,10 @@ const getMyOrders = async (req, res) => {
 const getOrderDetail = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user._id;
+    // const userId = req.user._id;
 
     // Use service method with user restriction for regular users
-    const order = await orderService.getOrderDetail(id, userId);
+    const order = await orderService.getOrderDetail(id);
 
     return baseResponse.successResponse(res, order, "Lấy chi tiết đơn hàng thành công");
   } catch (err) {
@@ -175,6 +195,7 @@ const getAllOrders = async (req, res) => {
       user: req.query.user,
       dateFrom: req.query.dateFrom,
       dateTo: req.query.dateTo,
+      is_return_requested: req.query.is_return_requested,
     };
     const options = {
       page: parseInt(req.query.page) || 1,
@@ -191,20 +212,51 @@ const getAllOrders = async (req, res) => {
 
 const updateOrderStatus = async (req, res) => {
   try {
-    const { error, value } = updateOrderStatusSchema.validate(req.body, { abortEarly: false });
+    const { error, value } = adminUpdateOrderStatusSchema.validate(req.body, { abortEarly: false });
     if (error) {
       return baseResponse.badRequestResponse(res, null, error.details.map((e) => e.message).join(", "));
     }
 
     const { id } = req.params;
-    const { status, note } = value;
+    const { status, note, is_return_requested } = value;
     const changedBy = req.user._id;
+    const role = req.user.role;
 
-    const order = await orderService.updateOrderStatus(id, status, changedBy, note);
+    const order = await orderService.updateOrderStatus(id, status, changedBy, note, is_return_requested, role, changedBy);
 
     return baseResponse.successResponse(res, order, "Cập nhật trạng thái đơn hàng thành công");
   } catch (err) {
     logger.error(`[ORDER] Cập nhật trạng thái đơn hàng thất bại: ${err.message}`, {
+      stack: err.stack,
+      orderId: req.params.id,
+      userId: req.user?._id,
+      body: req.body,
+    });
+
+    if (err.message.includes("Không tìm thấy")) {
+      return baseResponse.notFoundResponse(res, null, err.message);
+    }
+
+    return baseResponse.errorResponse(res, null, err.message);
+  }
+};
+
+const clientRequestReturn = async (req, res) => {
+  try {
+    const { error, value } = clientUpdateOrderStatusSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return baseResponse.badRequestResponse(res, null, error.details.map((e) => e.message).join(", "));
+    }
+
+    const { id } = req.params;
+    const { note } = value;
+    const userId = req.user._id;
+
+    const order = await orderService.clientRequestReturn(id, userId, note);
+
+    return baseResponse.successResponse(res, order, "Yêu cầu trả hàng đã được ghi nhận");
+  } catch (err) {
+    logger.error(`[ORDER] Client yêu cầu trả hàng lỗi: ${err.message}`, {
       stack: err.stack,
       orderId: req.params.id,
       userId: req.user?._id,
@@ -284,6 +336,7 @@ export default {
   // Admin functions
   getAllOrders,
   updateOrderStatus,
+  clientRequestReturn,
   getOrderTimeline,
 
   // Statistics and reporting

@@ -98,9 +98,13 @@ export const createOrderSchema = Joi.object({
     "string.length": "ID địa chỉ giao hàng phải có độ dài 24 ký tự",
     "any.required": "Địa chỉ giao hàng là bắt buộc",
   }),
+  // Dùng khi người dùng muốn tách riêng địa chỉ thanh toán với địa chỉ giao hàng.
   billing_address: Joi.string().hex().length(24).optional().messages({
     "string.hex": "ID địa chỉ thanh toán không hợp lệ",
     "string.length": "ID địa chỉ thanh toán phải có độ dài 24 ký tự",
+  }),
+  shipping_fee: Joi.number().min(0).optional().messages({
+    "number.min": "Phí vận chuyển không được nhỏ hơn 0",
   }),
   payment_method: Joi.string().valid("cod", "banking", "zalopay", "momo").default("cod").optional(),
   note: Joi.string().trim().max(500).allow("").optional().messages({
@@ -110,20 +114,26 @@ export const createOrderSchema = Joi.object({
   address: Joi.object().optional(),
 });
 
-// Schema cho cập nhật trạng thái đơn hàng
-export const updateOrderStatusSchema = Joi.object({
-  status: Joi.string().valid("pending", "confirmed", "processing", "shipping", "delivered", "completed", "cancelled", "returned").required().messages({
+// Dành cho ADMIN — được update status đầy đủ
+export const adminUpdateOrderStatusSchema = Joi.object({
+  status: Joi.string().valid("pending", "confirmed", "processing", "shipping", "delivered", "completed", "cancelled", "returned", "returning").required().messages({
     "any.only": "Trạng thái không hợp lệ",
     "any.required": "Trạng thái là bắt buộc",
   }),
+  is_return_requested: Joi.boolean().optional(),
   note: Joi.string().trim().max(500).allow("").optional().messages({
     "string.max": "Ghi chú không được vượt quá 500 ký tự",
   }),
 });
 
+// Dành cho CLIENT — chỉ được yêu cầu trả hàng
+export const clientUpdateOrderStatusSchema = Joi.object({
+  is_return_requested: Joi.boolean().valid(true).required(),
+  note: Joi.string().trim().max(500).allow("").optional(),
+});
 // Schema cho query parameters khi lấy danh sách đơn hàng
 export const getOrdersQuerySchema = Joi.object({
-  status: Joi.string().valid("pending", "confirmed", "processing", "shipping", "delivered", "completed", "cancelled", "returned").optional(),
+  status: Joi.string().valid("pending", "confirmed", "processing", "shipping", "delivered", "completed", "cancelled", "returned", "returning").optional(),
   payment_status: Joi.string().valid("pending", "processing", "completed", "failed", "cancelled", "refunded").optional(),
   payment_method: Joi.string().valid("cod", "banking", "zalopay", "momo").optional(),
   user: Joi.string().hex().length(24).optional().messages({

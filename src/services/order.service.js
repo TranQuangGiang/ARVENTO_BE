@@ -1,11 +1,13 @@
 import Order from "../models/order.model.js";
-import { Product } from "../models/index.js";
+import { couponModel, Product } from "../models/index.js";
 import Variant from "../models/variant.model.js";
 import Address from "../models/address.model.js";
 import cartService from "./cart.service.js";
 import logger from "../config/logger.config.js";
 import ExcelJS from "exceljs";
 import mongoose from "mongoose";
+import Roles from "../constants/role.enum.js";
+import { getCancelConfirmationEmailTemplate, getReturnApprovedEmailTemplate, getReturnRequestEmailTemplate, sendEmail } from "../utils/email.util.js";
 
 // Validate và kiểm tra tồn kho cho variant
 const validateOrderItem = async (item) => {
@@ -133,23 +135,18 @@ const checkAndUpdateStock = async (items) => {
   await Promise.all(updates);
   logger.info(`[ORDER] Successfully updated stock for ${validatedItems.length} items`);
 };
-
-// Tạo đơn hàng mới với cấu trúc mới
+// Tính lại subtotal từ items
+const calculateSubtotal = (items) => {
+  return items.reduce((sum, item) => {
+    const price = Number(item.price); // cần đảm bảo price có trong từng item
+    const quantity = Number(item.quantity || 1);
+    return sum + price * quantity;
+  }, 0);
+};
+// tao don hàng từ các item đc chọn trong giỏ hàng
 const createOrder = async (orderData) => {
   try {
-    const {
-      user,
-      items,
-      subtotal,
-      applied_coupon,
-      total,
-      shipping_address,
-      billing_address,
-      payment_method = "cod",
-      note,
-      // Backward compatibility
-      address,
-    } = orderData;
+    const { user, items, applied_coupon, shipping_address, billing_address, payment_method = "cod", note, address, shipping_fee = 0 } = orderData;
 
     logger.info(`[ORDER] Creating order for user: ${user}, items: ${items.length}`);
 
@@ -161,7 +158,7 @@ const createOrder = async (orderData) => {
       }
     }
 
-    // Validate billing address if provided
+    // Validate billing address
     if (billing_address) {
       const billingAddr = await Address.findById(billing_address);
       if (!billingAddr || billingAddr.user.toString() !== user.toString()) {
@@ -169,36 +166,86 @@ const createOrder = async (orderData) => {
       }
     }
 
-    // Check stock and validate items
+    // Kiểm tra tồn kho
     await checkAndUpdateStock(items);
 
-    // Create order with new structure
+    // Tính subtotal
+    const rawSubtotal = calculateSubtotal(items);
+
+    // Áp dụng coupon (nếu có)
+    let discountAmount = 0;
+    let couponPayload = undefined;
+
+    if (applied_coupon?.code) {
+      const couponCode = applied_coupon.code.trim().toUpperCase();
+      const coupon = await couponModel.findOne({ code: couponCode });
+
+      if (!coupon) {
+        throw new Error(`Mã giảm giá "${couponCode}" không tồn tại`);
+      }
+
+      if (!coupon.isValid()) {
+        throw new Error(`Mã giảm giá "${couponCode}" đã hết hạn hoặc không còn hiệu lực`);
+      }
+
+      // Kiểm tra hạn mức sử dụng theo từng user (nếu có)
+      if (coupon.perUserLimit) {
+        const usedCount = await Order.countDocuments({
+          user,
+          "applied_coupon.code": coupon.code,
+        });
+
+        if (usedCount >= coupon.perUserLimit) {
+          throw new Error(`Bạn đã sử dụng mã giảm giá "${coupon.code}" tối đa ${coupon.perUserLimit} lần`);
+        }
+      }
+
+      // Kiểm tra min/max spend
+      if (coupon.minSpend && rawSubtotal < coupon.minSpend) {
+        throw new Error(`Đơn hàng cần tối thiểu ${coupon.minSpend.toLocaleString()}₫ để dùng mã "${coupon.code}"`);
+      }
+      if (coupon.maxSpend && rawSubtotal > coupon.maxSpend) {
+        throw new Error(`Đơn hàng vượt quá mức tối đa ${coupon.maxSpend.toLocaleString()}₫ cho mã "${coupon.code}"`);
+      }
+
+      // Tính giảm giá
+      if (coupon.discountType === "percentage") {
+        discountAmount = rawSubtotal * (coupon.discountValue / 100);
+      } else if (coupon.discountType === "fixed_amount") {
+        discountAmount = coupon.discountValue;
+      }
+
+      // Không để tổng âm
+      discountAmount = Math.min(discountAmount, rawSubtotal);
+
+      couponPayload = {
+        code: coupon.code,
+        discount_amount: mongoose.Types.Decimal128.fromString(discountAmount.toFixed(2)),
+        discount_type: coupon.discountType,
+      };
+
+      // Cập nhật usageCount
+      coupon.usageCount += 1;
+      await coupon.save();
+    }
+
+    const total = Math.max(0, rawSubtotal - discountAmount + shipping_fee);
+
     const orderPayload = {
       user,
       items,
-      subtotal: mongoose.Types.Decimal128.fromString(subtotal.toString()),
-      total: mongoose.Types.Decimal128.fromString(total.toString()),
+      subtotal: mongoose.Types.Decimal128.fromString(rawSubtotal.toFixed(2)),
+      shipping_fee: mongoose.Types.Decimal128.fromString(shipping_fee.toFixed(2)),
+      total: mongoose.Types.Decimal128.fromString(total.toFixed(2)),
       shipping_address,
       billing_address,
       payment_method,
       note: note || "",
       status: "pending",
       payment_status: "pending",
+      ...(couponPayload && { applied_coupon: couponPayload }),
+      ...(address && { address }), // backward compatibility
     };
-
-    // Add coupon if provided
-    if (applied_coupon && applied_coupon.code) {
-      orderPayload.applied_coupon = {
-        code: applied_coupon.code,
-        discount_amount: mongoose.Types.Decimal128.fromString(applied_coupon.discount_amount.toString()),
-        discount_type: applied_coupon.discount_type || "percentage",
-      };
-    }
-
-    // Backward compatibility - keep old address field
-    if (address) {
-      orderPayload.address = address;
-    }
 
     const order = await Order.create(orderPayload);
 
@@ -209,58 +256,98 @@ const createOrder = async (orderData) => {
     throw error;
   }
 };
-
-// Tạo đơn hàng từ giỏ hàng
 const createOrderFromCart = async (userId, orderData) => {
   try {
-    const { shipping_address, billing_address, payment_method, note, use_cart_coupon = true } = orderData;
+    const { shipping_address, billing_address, payment_method, note, applied_coupon, shipping_fee = 0 } = orderData;
 
     logger.info(`[ORDER] Creating order from cart for user: ${userId}`);
 
-    // Get user's cart
-    const cart = await cartService.getCart(userId, false); // Don't include saved items
+    const cart = await cartService.getCart(userId, false);
 
     if (!cart || !cart.items || cart.items.length === 0) {
       throw new Error("Giỏ hàng trống");
     }
 
-    // Filter active items (not saved for later)
     const activeItems = cart.items.filter((item) => !item.saved_for_later);
-
     if (activeItems.length === 0) {
       throw new Error("Không có sản phẩm nào trong giỏ hàng để tạo đơn hàng");
     }
 
-    // Convert cart items to order items
     const orderItems = activeItems.map((cartItem) => ({
       product: cartItem.product,
       selected_variant: cartItem.selected_variant,
       quantity: cartItem.quantity,
-      unit_price: cartItem.unit_price,
-      total_price: cartItem.total_price,
+      unit_price: Number(cartItem.unit_price),
+      total_price: Number(cartItem.total_price),
     }));
 
-    // Prepare order data
+    const subtotal = orderItems.reduce((sum, item) => sum + item.total_price, 0);
+
+    let discountAmount = 0;
+    let couponPayload;
+
+    if (applied_coupon?.code) {
+      const code = applied_coupon.code.trim().toUpperCase();
+      const coupon = await couponModel.findOne({ code });
+
+      if (!coupon) throw new Error(`Mã giảm giá "${code}" không tồn tại`);
+      if (!coupon.isValid()) throw new Error(`Mã giảm giá "${code}" đã hết hạn hoặc không còn hiệu lực`);
+
+      if (coupon.perUserLimit) {
+        const usedCount = await Order.countDocuments({
+          user: userId,
+          "applied_coupon.code": code,
+        });
+        if (usedCount >= coupon.perUserLimit) {
+          throw new Error(`Bạn đã sử dụng mã "${code}" tối đa ${coupon.perUserLimit} lần`);
+        }
+      }
+
+      if (coupon.minSpend && subtotal < coupon.minSpend) {
+        throw new Error(`Đơn hàng cần tối thiểu ${coupon.minSpend.toLocaleString()}₫ để dùng mã "${code}"`);
+      }
+
+      if (coupon.maxSpend && subtotal > coupon.maxSpend) {
+        throw new Error(`Đơn hàng vượt quá ${coupon.maxSpend.toLocaleString()}₫ cho mã "${code}"`);
+      }
+
+      if (coupon.discountType === "percentage") {
+        discountAmount = subtotal * (coupon.discountValue / 100);
+      } else if (coupon.discountType === "fixed_amount") {
+        discountAmount = coupon.discountValue;
+      }
+
+      discountAmount = Math.min(discountAmount, subtotal);
+
+      couponPayload = {
+        code: coupon.code,
+        discount_amount: mongoose.Types.Decimal128.fromString(discountAmount.toFixed(2)),
+        discount_type: coupon.discountType,
+      };
+
+      coupon.usageCount += 1;
+      await coupon.save();
+    }
+
+    const finalTotal = Math.max(0, subtotal - discountAmount + shipping_fee);
+
     const orderPayload = {
       user: userId,
       items: orderItems,
-      subtotal: cart.subtotal,
-      total: cart.total,
+      subtotal: mongoose.Types.Decimal128.fromString(subtotal.toFixed(2)),
+      shipping_fee: mongoose.Types.Decimal128.fromString(shipping_fee.toFixed(2)),
+      total: mongoose.Types.Decimal128.fromString(finalTotal.toFixed(2)),
       shipping_address,
       billing_address,
       payment_method,
-      note,
+      note: note || "",
+      status: "pending",
+      payment_status: "pending",
+      ...(couponPayload && { applied_coupon: couponPayload }),
     };
 
-    // Add coupon if cart has one and user wants to use it
-    if (use_cart_coupon && cart.applied_coupon && cart.applied_coupon.code) {
-      orderPayload.applied_coupon = cart.applied_coupon;
-    }
+    const order = await Order.create(orderPayload);
 
-    // Create the order
-    const order = await createOrder(orderPayload);
-
-    // Clear the cart after successful order creation
     await cartService.clearCart(userId);
 
     logger.info(`[ORDER] Successfully created order ${order._id} from cart`);
@@ -426,22 +513,45 @@ const cancelOrder = async (orderId, userId) => {
     throw error;
   }
 };
-const getAllOrders = async (filters = {}, options = {}) => {
-  // filters: { status, payment_status, payment_method, user, dateFrom, dateTo, ... }
-  // options: { page, limit, sort }
+export const getAllOrders = async (filters = {}, options = {}) => {
   const query = {};
-  if (filters.status) query.status = filters.status;
-  if (filters.payment_status) query.payment_status = filters.payment_status;
-  if (filters.payment_method) query.payment_method = filters.payment_method;
-  if (filters.user) query.user = filters.user;
-  if (filters.dateFrom || filters.dateTo) {
-    query.createdAt = {};
-    if (filters.dateFrom) query.createdAt.$gte = new Date(filters.dateFrom);
-    if (filters.dateTo) query.createdAt.$lte = new Date(filters.dateTo);
+
+  if (filters.status) {
+    query.status = filters.status;
   }
-  const page = options.page || 1;
-  const limit = options.limit || 20;
-  const sort = options.sort || { createdAt: -1 };
+
+  if (filters.payment_status) {
+    query.payment_status = filters.payment_status;
+  }
+
+  if (filters.payment_method) {
+    query.payment_method = filters.payment_method;
+  }
+
+  if (filters.user) {
+    query.user = filters.user;
+  }
+
+  if (filters.is_return_requested !== undefined) {
+    query.is_return_requested = filters.is_return_requested === "true";
+  }
+
+  if (filters.dateFrom || filters.dateTo) {
+    query.created_at = {};
+    if (filters.dateFrom) {
+      query.created_at.$gte = new Date(filters.dateFrom);
+    }
+    if (filters.dateTo) {
+      const toDate = new Date(filters.dateTo);
+      toDate.setHours(23, 59, 59, 999);
+      query.created_at.$lte = toDate;
+    }
+  }
+
+  const page = parseInt(options.page) || 1;
+  const limit = parseInt(options.limit) || 20;
+  const sort = options.sort || { created_at: -1 };
+
   const orders = await Order.find(query)
     .sort(sort)
     .skip((page - 1) * limit)
@@ -450,9 +560,17 @@ const getAllOrders = async (filters = {}, options = {}) => {
     .populate("items.product", "name slug images price")
     .populate("shipping_address", "name phone detail ward district province isDefault")
     .populate("billing_address", "name phone detail ward district province isDefault");
+
   const total = await Order.countDocuments(query);
-  return { orders, total, page, limit };
+
+  return {
+    orders,
+    total,
+    page,
+    limit,
+  };
 };
+
 // Lưu lịch sử trạng thái đơn hàng (timeline)
 const addOrderTimeline = async (orderId, status, changedBy) => {
   const order = await Order.findById(orderId);
@@ -474,20 +592,123 @@ const getOrderTimeline = async (orderId) => {
   return order.timeline || [];
 };
 
-// Cập nhật trạng thái đơn hàng (admin)
-const updateOrderStatus = async (orderId, status, changedBy) => {
+// Cập nhật trạng thái đơn hàng
+const allowedTransitions = {
+  pending: ["confirmed", "cancelled"],
+  confirmed: ["processing", "cancelled"],
+  processing: ["shipping", "cancelled"],
+  shipping: ["delivered", "returned"],
+  delivered: ["completed", "returning", "returned"],
+  returning: ["returned", "cancelled"],
+  returned: [],
+  completed: [],
+  cancelled: [],
+};
+const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isReturnRequested = undefined, userRole = Roles.ADMIN, currentUserId = null) => {
   const order = await Order.findById(orderId);
   if (!order) throw new Error("Không tìm thấy đơn hàng");
-  order.status = status;
-  if (!order.timeline) order.timeline = [];
+
+  const currentStatus = order.status;
+
+  if (userRole === Roles.ADMIN) {
+    const allowedNext = allowedTransitions[currentStatus] || [];
+    if (!allowedNext.includes(newStatus)) {
+      throw new Error(`Không thể chuyển trạng thái từ "${currentStatus}" sang "${newStatus}"`);
+    }
+  }
+
+  if (userRole === Roles.USER) {
+    if (!(currentStatus === "delivered" && newStatus === "completed")) {
+      throw new Error("Bạn không có quyền thực hiện hành động này");
+    }
+    if (!order.user.equals(currentUserId)) {
+      throw new Error("Bạn không có quyền thao tác đơn hàng này");
+    }
+  }
+
+  order.status = newStatus;
+
+  if (typeof isReturnRequested === "boolean") {
+    order.is_return_requested = isReturnRequested;
+  }
+
+  order.timeline ??= [];
   order.timeline.push({
-    status,
+    status: newStatus,
     changedBy,
+    note: note || (userRole === Roles.USER ? "Khách hàng xác nhận đã nhận hàng" : ""),
     changedAt: new Date(),
   });
+
   await order.save();
+  if (userRole === Roles.ADMIN && currentStatus !== "returning" && newStatus === "returning" && order.user?.email) {
+    try {
+      const html = getReturnApprovedEmailTemplate({
+        fullName: order.user.fullName || "Khách hàng",
+        orderId: order._id,
+        note,
+        createdAt: order.createdAt,
+      });
+
+      await sendEmail(order.user.email, " Yêu cầu trả hàng đã được phê duyệt", html);
+    } catch (err) {
+      console.error("[EMAIL] Gửi thông báo phê duyệt trả hàng thất bại:", err);
+    }
+  }
   return order;
 };
+
+const ADMIN_EMAIL = "quanggiang69.dev@gmail.com";
+
+export const clientRequestReturn = async (orderId, userId, note = "") => {
+  const order = await Order.findById(orderId).populate("user");
+  if (!order) throw new Error("Không tìm thấy đơn hàng");
+
+  if (order.user._id.toString() !== userId.toString()) {
+    throw new Error("Bạn không có quyền thao tác đơn hàng này");
+  }
+
+  if (order.status !== "delivered") {
+    throw new Error("Chỉ có thể yêu cầu trả hàng sau khi đơn đã giao thành công");
+  }
+
+  if (order.is_return_requested) {
+    throw new Error("Bạn đã yêu cầu trả hàng trước đó");
+  }
+
+  order.is_return_requested = true;
+  order.timeline ??= [];
+  order.timeline.push({
+    status: order.status,
+    changedBy: userId,
+    changedAt: new Date(),
+    note: note || "Khách hàng yêu cầu trả hàng",
+  });
+
+  await order.save();
+
+  // Gửi email admin
+  const emailHtml = getReturnRequestEmailTemplate({
+    fullName: order.user.fullName || order.user.email,
+    orderId: order._id.toString(),
+    note,
+    createdAt: order.createdAt,
+  });
+
+  await sendEmail(ADMIN_EMAIL, `Yêu cầu trả hàng từ khách hàng ${order.user.fullName || order.user.email}`, emailHtml);
+
+  // Gửi email  khách hàng
+  const userEmailHtml = getCancelConfirmationEmailTemplate({
+    fullName: order.user.fullName || order.user.email,
+    orderId: order._id.toString(),
+    note,
+  });
+
+  await sendEmail(order.user.email, `Yêu cầu huỷ đơn hàng của bạn đã được ghi nhận`, userEmailHtml);
+
+  return order;
+};
+
 const getRecentOrders = async (limit = 10) => {
   return await Order.find().sort({ createdAt: -1 }).limit(limit).populate("user", "name email phone").populate("items.product", "name images slug price").populate("shipping_address", "name phone detail ward district province isDefault").populate("billing_address", "name phone detail ward district province isDefault");
 };
@@ -586,6 +807,7 @@ export default {
   // Admin functions
   getAllOrders,
   updateOrderStatus,
+  clientRequestReturn,
   addOrderTimeline,
   getOrderTimeline,
 
