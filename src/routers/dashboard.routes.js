@@ -15,15 +15,35 @@ const router = express.Router();
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Tổng quan hệ thống
+ *         description: "Lấy thành công"
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     userCount:
+ *                       type: integer
+ *                     orderCount:
+ *                       type: integer
+ *                     productCount:
+ *                       type: integer
+ *                     couponCount:
+ *                       type: integer
  */
 router.get("/overview", authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), dashboardController.getOverview);
 
 /**
- * @swaggers
+ * @swagger
  * /dashboard/revenue:
  *   get:
- *     summary: Thống kê doanh thu
+ *     summary: Thống kê doanh thu theo ngày
  *     tags: [Dashboard]
  *     security:
  *       - bearerAuth: []
@@ -32,15 +52,37 @@ router.get("/overview", authMiddleware.authenticateToken, authMiddleware.authori
  *         name: from
  *         schema:
  *           type: string
- *         description: Ngày bắt đầu (YYYY-MM-DD)
+ *           format: date
+ *         description: "Ngày bắt đầu (YYYY-MM-DD)"
  *       - in: query
  *         name: to
  *         schema:
  *           type: string
- *         description: Ngày kết thúc (YYYY-MM-DD)
+ *           format: date
+ *         description: "Ngày kết thúc (YYYY-MM-DD)"
  *     responses:
  *       200:
- *         description: Thống kê doanh thu
+ *         description: "Dữ liệu doanh thu theo thời gian"
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       date:
+ *                         type: string
+ *                         example: "2025-07-25"
+ *                       revenue:
+ *                         type: number
+ *                         example: 5000000
  */
 router.get("/revenue", authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), dashboardController.getRevenueStats);
 
@@ -54,15 +96,35 @@ router.get("/revenue", authMiddleware.authenticateToken, authMiddleware.authoriz
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Thống kê đơn hàng theo trạng thái
+ *         description: "Thống kê đơn hàng theo trạng thái"
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       status:
+ *                         type: string
+ *                         example: "delivered"
+ *                       count:
+ *                         type: integer
+ *                         example: 32
  */
 router.get("/orders/status", authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), dashboardController.getOrderStatusStats);
 
 /**
  * @swagger
- * /dashboard/products/top-selling:
+ * /dashboard/best-sellers:
  *   get:
- *     summary: Sản phẩm bán chạy
+ *     summary: Danh sách sản phẩm bán chạy nhất
  *     tags: [Dashboard]
  *     security:
  *       - bearerAuth: []
@@ -71,45 +133,141 @@ router.get("/orders/status", authMiddleware.authenticateToken, authMiddleware.au
  *         name: limit
  *         schema:
  *           type: integer
- *         description: Số lượng sản phẩm trả về
+ *         description: "Số lượng sản phẩm trả về (mặc định: 10)"
  *     responses:
  *       200:
- *         description: Danh sách sản phẩm bán chạy nhất
+ *         description: "Danh sách sản phẩm bán chạy nhất"
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       productName:
+ *                         type: string
+ *                       quantitySold:
+ *                         type: integer
+ *                       totalRevenue:
+ *                         type: number
  */
-router.get("/products/top-selling", authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), dashboardController.getTopSellingProducts);
+router.get("/best-sellers", authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), dashboardController.getTopSellingProducts);
 
 /**
  * @swagger
- * /dashboard/users/new:
+ * /dashboard/users-new:
  *   get:
- *     summary: Người dùng mới
+ *     summary: Số lượng người dùng mới đăng ký
  *     tags: [Dashboard]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: query
- *         name: limit
+ *         name: from
  *         schema:
- *           type: integer
- *         description: Số lượng user trả về
+ *           type: string
+ *           format: date
+ *         description: "Ngày bắt đầu (YYYY-MM-DD)"
+ *       - in: query
+ *         name: to
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: "Ngày kết thúc (YYYY-MM-DD)"
  *     responses:
  *       200:
- *         description: Danh sách user mới đăng ký gần đây
+ *         description: "Số lượng người dùng mới"
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     totalNewUsers:
+ *                       type: integer
+ *                       example: 120
  */
-router.get("/users/new", authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), dashboardController.getNewUsers);
+router.get("/users-new", authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), dashboardController.getNewUsers);
 
 /**
  * @swagger
- * /dashboard/coupons/usage:
+ * /dashboard/coupons/top-discount-used:
  *   get:
- *     summary: Thống kê số lần sử dụng từng mã giảm giá
+ *     summary: Danh sách mã giảm giá được sử dụng nhiều nhất
  *     tags: [Dashboard]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Thống kê số lần sử dụng từng mã giảm giá
+ *         description: "Danh sách mã giảm giá"
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       code:
+ *                         type: string
+ *                         example: "SUMMER50"
+ *                       usedCount:
+ *                         type: integer
+ *                         example: 128
  */
-router.get("/coupons/usage", authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), dashboardController.getCouponUsageStats);
+router.get("/top-discount-used", authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), dashboardController.getTopDiscountUsed);
+
+/**
+ * @swagger
+ * /dashboard/coupons/stock-warning:
+ *   get:
+ *     summary: Danh sách sản phẩm sắp hết hàng
+ *     tags: [Dashboard]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: "Danh sách sản phẩm sắp hết"
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       productName:
+ *                         type: string
+ *                       quantityRemaining:
+ *                         type: integer
+ *                       threshold:
+ *                         type: integer
+ */
+router.get("/stock-warning", authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), dashboardController.getLowStockProducts);
 
 export default router;

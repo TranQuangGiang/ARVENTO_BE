@@ -150,20 +150,40 @@ const createOrder = async (orderData) => {
 
     logger.info(`[ORDER] Creating order for user: ${user}, items: ${items.length}`);
 
-    // Validate shipping address
+    let shippingAddressSnapshot = null;
     if (shipping_address) {
       const shippingAddr = await Address.findById(shipping_address);
       if (!shippingAddr || shippingAddr.user.toString() !== user.toString()) {
         throw new Error("Địa chỉ giao hàng không hợp lệ");
       }
+
+      shippingAddressSnapshot = {
+        name: shippingAddr.name,
+        phone: shippingAddr.phone,
+        detail: shippingAddr.detail,
+        ward: shippingAddr.ward,
+        district: shippingAddr.district,
+        province: shippingAddr.province,
+        isDefault: shippingAddr.isDefault,
+      };
     }
 
-    // Validate billing address
+    let billingAddressSnapshot = null;
     if (billing_address) {
       const billingAddr = await Address.findById(billing_address);
       if (!billingAddr || billingAddr.user.toString() !== user.toString()) {
         throw new Error("Địa chỉ thanh toán không hợp lệ");
       }
+
+      billingAddressSnapshot = {
+        name: billingAddr.name,
+        phone: billingAddr.phone,
+        detail: billingAddr.detail,
+        ward: billingAddr.ward,
+        district: billingAddr.district,
+        province: billingAddr.province,
+        isDefault: billingAddr.isDefault,
+      };
     }
 
     // Kiểm tra tồn kho
@@ -237,16 +257,15 @@ const createOrder = async (orderData) => {
       subtotal: mongoose.Types.Decimal128.fromString(rawSubtotal.toFixed(2)),
       shipping_fee: mongoose.Types.Decimal128.fromString(shipping_fee.toFixed(2)),
       total: mongoose.Types.Decimal128.fromString(total.toFixed(2)),
-      shipping_address,
-      billing_address,
+      shipping_address: shippingAddressSnapshot,
+      billing_address: billingAddressSnapshot,
       payment_method,
       note: note || "",
       status: "pending",
       payment_status: "pending",
       ...(couponPayload && { applied_coupon: couponPayload }),
-      ...(address && { address }), // backward compatibility
+      ...(address && { address }),
     };
-
     const order = await Order.create(orderPayload);
 
     logger.info(`[ORDER] Created order: ${order._id}`);
@@ -405,10 +424,9 @@ const getMyOrders = async (user, filters = {}) => {
 const getOrderDetail = async (id, userId = null) => {
   try {
     const query = { _id: id };
-    if (userId) query.user = userId; // Restrict to user's own orders if userId provided
+    if (userId) query.user = userId;
 
-    const order = await Order.findOne(query).populate("user", "name email phone").populate("items.product", "name images slug description").populate("shipping_address", "name phone detail ward district province isDefault").populate("billing_address", "name phone detail ward district province isDefault").populate("timeline.changedBy", "name email");
-
+    const order = await Order.findOne(query).populate("user", "name email phone").populate("items.product", "name images slug description").populate("timeline.changedBy", "name email");
     if (!order) {
       throw new Error("Không tìm thấy đơn hàng");
     }
@@ -737,17 +755,6 @@ export const clientRequestReturn = async (orderId, userId, note = "") => {
 const getRecentOrders = async (limit = 10) => {
   return await Order.find().sort({ createdAt: -1 }).limit(limit).populate("user", "name email phone").populate("items.product", "name images slug price").populate("shipping_address", "name phone detail ward district province isDefault").populate("billing_address", "name phone detail ward district province isDefault");
 };
-const getRevenueByDate = async ({ from, to, groupBy = "day" }) => {
-  const match = { status: "completed" };
-  if (from || to) match.createdAt = {};
-  if (from) match.createdAt.$gte = new Date(from);
-  if (to) match.createdAt.$lte = new Date(to);
-
-  const dateFormat = groupBy === "month" ? { $dateToString: { format: "%Y-%m", date: "$createdAt" } } : { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } };
-
-  const result = await Order.aggregate([{ $match: match }, { $group: { _id: dateFormat, revenue: { $sum: "$total" } } }, { $sort: { _id: 1 } }]);
-  return result.map((r) => ({ date: r._id, revenue: r.revenue }));
-};
 
 const countOrdersByStatus = async () => {
   const result = await Order.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]);
@@ -846,7 +853,6 @@ export default {
   countNewOrders,
   sumOrderRevenue,
   countOrdersByStatus,
-  getRevenueByDate,
   getRecentOrders,
   exportOrders,
 

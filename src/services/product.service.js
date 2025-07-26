@@ -1,15 +1,14 @@
-import xlsx from 'xlsx';
-import mongoose from 'mongoose';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
+import xlsx from "xlsx";
+import mongoose from "mongoose";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 import { Product, Variant, Option } from "../models/index.js";
 import { logger } from "../config/index.js";
 
-import { productValidate } from '../validations/index.js';
-import { slugify } from '../utils/slugify.js';
+import { productValidate } from "../validations/index.js";
+import { slugify } from "../utils/slugify.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -56,7 +55,7 @@ const createProduct = async (data) => {
       for (let variant of data.variants) {
         variant.stock = parseInt(variant.stock) || 0;
         if (variant.stock < 0) {
-          throw new Error('Số lượng tồn kho của biến thể không được âm');
+          throw new Error("Số lượng tồn kho của biến thể không được âm");
         }
         totalStock += variant.stock;
       }
@@ -64,7 +63,7 @@ const createProduct = async (data) => {
     } else {
       data.stock = parseInt(data.stock) || 0;
       if (data.stock < 0) {
-        throw new Error('Tồn kho sản phẩm không được âm');
+        throw new Error("Tồn kho sản phẩm không được âm");
       }
     }
 
@@ -83,33 +82,33 @@ const createProduct = async (data) => {
     // Validate bằng Joi
     const { error } = productValidate.create.validate(data, { abortEarly: false });
     if (error) {
-      throw new Error(error.details.map(e => e.message).join(', '));
+      throw new Error(error.details.map((e) => e.message).join(", "));
     }
 
     if (data.sale_price > data.original_price) {
-      throw new Error('Giá khuyến mãi không được lớn hơn giá gốc');
+      throw new Error("Giá khuyến mãi không được lớn hơn giá gốc");
     }
 
     // Check trùng mã
     const existingProduct = await Product.findOne({ product_code: data.product_code });
     if (existingProduct) {
-      throw new Error('Mã sản phẩm đã tồn tại');
+      throw new Error("Mã sản phẩm đã tồn tại");
     }
 
     // ===== Validate options từ collection Option =====
-    if (data.options && typeof data.options === 'object') {
+    if (data.options && typeof data.options === "object") {
       const allOptions = await Option.find({});
-      const validKeys = allOptions.map(opt => opt.key);
+      const validKeys = allOptions.map((opt) => opt.key);
 
       for (const [key, values] of Object.entries(data.options)) {
         if (!validKeys.includes(key)) {
           throw new Error(`Option key '${key}' không tồn tại.`);
         }
 
-        const optionDoc = allOptions.find(o => o.key === key);
+        const optionDoc = allOptions.find((o) => o.key === key);
 
-        if (key === 'color') {
-          const colorNamesInDB = optionDoc.values.map(c => c.name);
+        if (key === "color") {
+          const colorNamesInDB = optionDoc.values.map((c) => c.name);
           for (const color of values) {
             if (!colorNamesInDB.includes(color.name)) {
               throw new Error(`Màu '${color.name}' không hợp lệ cho option '${key}'.`);
@@ -125,18 +124,19 @@ const createProduct = async (data) => {
       }
     }
 
-
     // ===== Tạo sản phẩm =====
     const product = await Product.create(data);
 
     // Nếu có biến thể
     if (Array.isArray(data.variants) && data.variants.length > 0) {
-      await Promise.all(data.variants.map(variant =>
-        Variant.create({
-          ...variant,
-          product_id: product._id
-        })
-      ));
+      await Promise.all(
+        data.variants.map((variant) =>
+          Variant.create({
+            ...variant,
+            product_id: product._id,
+          })
+        )
+      );
     }
 
     return product;
@@ -148,13 +148,12 @@ const createProduct = async (data) => {
   }
 };
 
-
 const updateProduct = async (id, data) => {
   try {
     logger.info(`Updating product ID ${id}`);
 
     // Ép kiểu category_id nếu cần
-    if (data.category_id && typeof data.category_id === 'string' && mongoose.Types.ObjectId.isValid(data.category_id)) {
+    if (data.category_id && typeof data.category_id === "string" && mongoose.Types.ObjectId.isValid(data.category_id)) {
       data.category_id = new mongoose.Types.ObjectId(data.category_id);
     }
 
@@ -164,45 +163,40 @@ const updateProduct = async (id, data) => {
       for (let variant of data.variants) {
         variant.stock = parseInt(variant.stock) || 0;
         if (variant.stock < 0) {
-          throw new Error('Tồn kho biến thể không được âm');
+          throw new Error("Tồn kho biến thể không được âm");
         }
         totalStock += variant.stock;
       }
       data.stock = totalStock;
-    } else if (typeof data.stock !== 'undefined') {
+    } else if (typeof data.stock !== "undefined") {
       data.stock = parseInt(data.stock) || 0;
       if (data.stock < 0) {
-        throw new Error('Tồn kho sản phẩm không được âm');
+        throw new Error("Tồn kho sản phẩm không được âm");
       }
     }
 
     // Validate logic giá
     if (data.sale_price && data.original_price && data.sale_price > data.original_price) {
-      throw new Error('Giá khuyến mãi không được lớn hơn giá gốc');
+      throw new Error("Giá khuyến mãi không được lớn hơn giá gốc");
     }
 
-    if ('updated_at' in data) {
+    if ("updated_at" in data) {
       delete data.updated_at;
     }
 
-    // ✅ THÊM Ở ĐÂY
     if (data.options) {
       const allOptions = await Option.find({});
 
       for (const [key, values] of Object.entries(data.options)) {
-        const option = allOptions.find(o => o.key === key);
+        const option = allOptions.find((o) => o.key === key);
         if (!option) continue;
 
         let validValues = [];
 
-        if (key === 'color') {
-          validValues = values.filter(v =>
-            option.values.some(ov =>
-              ov.name?.toLowerCase().trim() === v.name?.toLowerCase().trim()
-            )
-          );
+        if (key === "color") {
+          validValues = values.filter((v) => option.values.some((ov) => ov.name?.toLowerCase().trim() === v.name?.toLowerCase().trim()));
         } else {
-          validValues = values.filter(v => option.values.includes(v));
+          validValues = values.filter((v) => option.values.includes(v));
         }
 
         data.options[key] = validValues;
@@ -212,7 +206,7 @@ const updateProduct = async (id, data) => {
     // Validate bằng Joi nếu muốn (tuỳ chọn)
     const { error } = productValidate.update.validate(data, { abortEarly: false });
     if (error) {
-      throw new Error(error.details.map(e => e.message).join(', '));
+      throw new Error(error.details.map((e) => e.message).join(", "));
     }
 
     const updatedProduct = await Product.findByIdAndUpdate(id, data, { new: true });
@@ -223,14 +217,10 @@ const updateProduct = async (id, data) => {
       throw error;
     }
 
-    // ✅ THÊM ĐOẠN NÀY → đồng bộ giá variants
     if (data.sale_price !== undefined) {
       const salePriceDecimal = new mongoose.Types.Decimal128(data.sale_price.toString());
 
-      await Variant.updateMany(
-        { product_id: id },
-        { $set: { price: salePriceDecimal } }
-      );
+      await Variant.updateMany({ product_id: id }, { $set: { price: salePriceDecimal } });
 
       logger.info(`Đã đồng bộ giá sale ${data.sale_price} cho toàn bộ variants của product ${id}`);
     }
@@ -241,10 +231,6 @@ const updateProduct = async (id, data) => {
     throw err;
   }
 };
-
-
-
-
 
 const deleteProduct = async (id) => {
   try {
@@ -263,8 +249,6 @@ const deleteProduct = async (id) => {
   }
 };
 
-
-
 const getRelatedProducts = async (productId, limit = 6) => {
   try {
     logger.info(`Fetching related products for product ID: ${productId}`);
@@ -274,10 +258,9 @@ const getRelatedProducts = async (productId, limit = 6) => {
       throw new Error("Product not found");
     }
 
-
     const related = await Product.find({
       _id: { $ne: productId },
-      category_id: product.category_id
+      category_id: product.category_id,
     })
 
       .limit(limit)
@@ -290,7 +273,6 @@ const getRelatedProducts = async (productId, limit = 6) => {
   }
 };
 
-
 const updateProductStatus = async (id, isActive) => {
   try {
     logger.info(`Updating product isActive for ID ${id} to ${isActive}`);
@@ -299,7 +281,7 @@ const updateProductStatus = async (id, isActive) => {
       id,
       {
         isActive,
-        is_manual: true // đánh dấu admin thay đổi thủ công
+        is_manual: true, // đánh dấu admin thay đổi thủ công
       },
       { new: true }
     );
@@ -318,25 +300,24 @@ const updateProductStatus = async (id, isActive) => {
   }
 };
 
-
 const searchProducts = async (keyword, page = 1, limit = 10) => {
   try {
     logger.info(`Searching products with keyword: ${keyword}`);
-    const regex = new RegExp(keyword, 'i');
+    const regex = new RegExp(keyword, "i");
     const filters = {
       $or: [
         { name: { $regex: regex } },
         // { description: { $regex: regex } },
         { tags: { $regex: regex } },
-        { product_code: { $regex: regex } }
-      ]
+        { product_code: { $regex: regex } },
+      ],
     };
 
     const options = {
       page,
       limit,
       lean: true,
-      sort: { createdAt: -1 }
+      sort: { createdAt: -1 },
     };
 
     return await Product.paginate(filters, options);
@@ -353,18 +334,18 @@ const filterProducts = async (filters = {}, page = 1, limit = 10, sort = {}) => 
       page,
       limit,
       lean: true,
-      sort
+      sort,
     };
 
     // Xử lý sort
     const sortOptions = {};
-    if (sort === 'price_asc') {
+    if (sort === "price_asc") {
       sortOptions.price = 1;
-    } else if (sort === 'price_desc') {
+    } else if (sort === "price_desc") {
       sortOptions.price = -1;
-    } else if (sort === 'name_asc') {
+    } else if (sort === "name_asc") {
       sortOptions.name = 1;
-    } else if (sort === 'name_desc') {
+    } else if (sort === "name_desc") {
       sortOptions.name = -1;
     }
     options.sort = sortOptions;
@@ -376,16 +357,16 @@ const filterProducts = async (filters = {}, page = 1, limit = 10, sort = {}) => 
   }
 };
 
-const exportProducts = async (format = 'excel') => {
+const exportProducts = async (format = "excel") => {
   try {
     const products = await Product.find().lean();
 
-    if (format === 'excel') {
+    if (format === "excel") {
       const workbook = xlsx.utils.book_new();
       const worksheet = xlsx.utils.json_to_sheet(products);
-      xlsx.utils.book_append_sheet(workbook, worksheet, 'Products');
+      xlsx.utils.book_append_sheet(workbook, worksheet, "Products");
 
-      const exportDir = path.join(__dirname, '..', 'public', 'exports');
+      const exportDir = path.join(__dirname, "..", "public", "exports");
       if (!fs.existsSync(exportDir)) fs.mkdirSync(exportDir, { recursive: true });
 
       const filename = `products_exported_${Date.now()}.xlsx`;
@@ -396,7 +377,7 @@ const exportProducts = async (format = 'excel') => {
       return { path: filePath, filename };
     }
 
-    throw new Error('Invalid format');
+    throw new Error("Invalid format");
   } catch (error) {
     logger.error(`Failed to export products: ${error.message}`, { stack: error.stack });
     throw error;
@@ -439,13 +420,13 @@ const importProducts = async (file) => {
           throw new Error(`Không tìm thấy option 'color' trong hệ thống`);
         }
 
-        const exist = colorOption.some(val => val.name.toLowerCase() === colorName.toLowerCase());
+        const exist = colorOption.some((val) => val.name.toLowerCase() === colorName.toLowerCase());
         if (!exist) {
           throw new Error(`Giá trị option 'color' không hợp lệ: ${colorName}`);
         }
 
         // Lưu lại
-        const colorObj = colorOption.find(val => val.name.toLowerCase() === colorName.toLowerCase());
+        const colorObj = colorOption.find((val) => val.name.toLowerCase() === colorName.toLowerCase());
         options["color"] = [colorObj];
       }
 
@@ -476,7 +457,7 @@ const importProducts = async (file) => {
         isActive: item["Trạng thái"] === "Có hiệu lực",
         options,
         created_at: new Date(),
-        updated_at: new Date()
+        updated_at: new Date(),
       };
       if (item["Images"]) {
         try {
@@ -498,13 +479,13 @@ const importProducts = async (file) => {
         try {
           productData.variants = JSON.parse(item["Variants"]);
         } catch (err) {
+          console.log(err);
           throw new Error("Cột Variants không phải JSON hợp lệ");
         }
       }
       const product = await Product.create(productData);
       await product.calculateTotalStock();
       results.push(product);
-
     } catch (err) {
       errors.push({ data: item, error: err.message });
     }
@@ -512,11 +493,6 @@ const importProducts = async (file) => {
 
   return { imported: results, errors };
 };
-
-
-
-
-
 
 export default {
   getAllProducts,
@@ -529,5 +505,5 @@ export default {
   filterProducts,
   exportProducts,
   importProducts,
-  getRelatedProducts
+  getRelatedProducts,
 };
