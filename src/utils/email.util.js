@@ -29,6 +29,65 @@ export const sendEmail = async (to, subject, html) => {
     throw new Error("Gửi email thất bại");
   }
 };
+export const getOrderConfirmationEmailTemplate = ({ fullName, phone, address, orderId, createdAt, items, total, paymentMethod }) => {
+  const itemRows = items
+    .map(
+      (item) => `
+        <tr>
+          <td style="padding: 8px 12px; border: 1px solid #eee;">${item.name}</td>
+          <td style="padding: 8px 12px; border: 1px solid #eee; text-align: center;">${item.quantity}</td>
+          <td style="padding: 8px 12px; border: 1px solid #eee; text-align: right;">${item.price.toLocaleString()}₫</td>
+        </tr>
+      `
+    )
+    .join("");
+
+  return `
+    <div style="font-family: 'Arial', sans-serif; background-color: #f4f4f4; padding: 24px;">
+      <div style="max-width: 600px; margin: 0 auto; background-color: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+        <div style="background-color: #007bff; color: #fff; padding: 20px;">
+          <h2 style="margin: 0;">🛒 Xác Nhận Đơn Hàng</h2>
+        </div>
+        <div style="padding: 24px;">
+          <p>Chào <strong>${fullName}</strong>,</p>
+          <p>Chúng tôi đã nhận được đơn hàng <strong>#${orderId}</strong> của bạn vào lúc <strong>${new Date(createdAt).toLocaleString()}</strong>.</p>
+
+          <h3>📦 Thông tin người nhận</h3>
+          <p><strong>Họ tên:</strong> ${fullName}</p>
+          <p><strong>Điện thoại:</strong> ${phone}</p>
+          <p><strong>Địa chỉ:</strong> ${address}</p>
+
+          <h3>🧾 Chi tiết đơn hàng</h3>
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            <thead>
+              <tr style="background-color: #f0f0f0;">
+                <th style="padding: 8px 12px; border: 1px solid #ccc; text-align: left;">Sản phẩm</th>
+                <th style="padding: 8px 12px; border: 1px solid #ccc; text-align: center;">Số lượng</th>
+                <th style="padding: 8px 12px; border: 1px solid #ccc; text-align: right;">Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemRows}
+              <tr>
+                <td colspan="2" style="padding: 12px; text-align: right; font-weight: bold;">Tổng cộng</td>
+                <td style="padding: 12px; text-align: right; font-weight: bold;">${total.toLocaleString()}₫</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>💳 Hình thức thanh toán</h3>
+          <p>${paymentMethod}</p>
+
+          <p style="margin-top: 24px;">Cảm ơn bạn đã đặt hàng tại <strong>hệ thống của chúng tôi</strong>. Chúng tôi sẽ sớm liên hệ để xác nhận và giao hàng.</p>
+          <p style="font-size: 13px; color: #777;">Nếu bạn có bất kỳ thắc mắc nào, vui lòng liên hệ với bộ phận hỗ trợ khách hàng.</p>
+        </div>
+        <div style="background-color: #f1f1f1; text-align: center; padding: 16px; font-size: 12px; color: #888;">
+          Đây là email tự động, vui lòng không phản hồi lại email này.
+        </div>
+      </div>
+    </div>
+  `;
+};
 
 export const getReturnRequestEmailTemplate = ({ fullName, orderId, note, createdAt }) => {
   return `

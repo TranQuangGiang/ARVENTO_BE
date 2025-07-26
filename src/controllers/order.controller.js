@@ -11,7 +11,7 @@ import {
   clientUpdateOrderStatusSchema,
   // exportOrdersQuerySchema, revenueQuerySchema
 } from "../validations/order.validation.js";
-import { sendEmail } from "../utils/email.util.js";
+import { getOrderConfirmationEmailTemplate, sendEmail } from "../utils/email.util.js";
 
 // Helper function to parse sort parameter
 const parseSortParam = (sortParam) => {
@@ -48,14 +48,22 @@ const createOrder = async (req, res) => {
     const user = req.user._id;
     const order = await orderService.createOrder({ user, ...value });
 
-    await sendEmail(
-      req.user.email,
-      "Xác nhận đơn hàng",
-      `<p>Chào ${req.user.name || "bạn"},</p>
-      <p>Chúng tôi đã nhận được đơn hàng <strong>#${order._id}</strong>.</p>
-      <p>Tổng tiền: <strong>${order.total.toLocaleString()}₫</strong></p>
-      <p>Cảm ơn bạn đã mua hàng tại hệ thống của chúng tôi!</p>`
-    );
+    const html = getOrderConfirmationEmailTemplate({
+      fullName: req.user.name,
+      phone: order.receiver.phone,
+      address: order.receiver.address,
+      orderId: order._id,
+      createdAt: order.createdAt,
+      items: order.items.map((i) => ({
+        name: i.product.name,
+        quantity: i.quantity,
+        price: i.total,
+      })),
+      total: order.total,
+      paymentMethod: order.paymentMethod || "Chưa xác định",
+    });
+
+    await sendEmail(req.user.email, "Xác nhận đơn hàng", html);
 
     logger.info(`[ORDER] Created order ${order._id} for user ${user}`);
     return baseResponse.createdResponse(res, order, "Tạo đơn hàng thành công");
