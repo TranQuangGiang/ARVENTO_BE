@@ -6,6 +6,8 @@ import Product from "../models/product.model.js";
 import Variant from "../models/variant.model.js";
 import logger from "../config/logger.config.js";
 import couponService from "./coupon.service.js";
+import couponModel from "../models/coupon.model.js";
+import orderModel from "../models/order.model.js";
 // Lấy hoặc tạo giỏ hàng cho user
 const getOrCreateCart = async (userId) => {
   try {
@@ -48,15 +50,12 @@ const saveCartCoupon = async (userId, couponData, discountAmount, finalTotal) =>
     throw error;
   }
 };
-
-// Lấy giỏ hàng của user
 export const getCart = async (userId, includeSaved = true, page = 1, limit = 100) => {
   try {
     if (!userId) {
       throw new Error("User ID is required");
     }
 
-    // Validate pagination parameters
     const validPage = Math.max(1, parseInt(page) || 1);
     const validLimit = Math.min(Math.max(1, parseInt(limit) || 100), 100);
 
@@ -67,54 +66,65 @@ export const getCart = async (userId, includeSaved = true, page = 1, limit = 100
     }
 
     await cart.populate("items.product");
-
     const cartObj = cart.toObject();
-
     let items = includeSaved ? cartObj.items : cartObj.items.filter((item) => !item.saved_for_later);
 
-    // Áp dụng phân trang
+    // Pagination
     const totalItems = items.length;
     const totalPages = Math.ceil(totalItems / validLimit) || 1;
     const startIndex = (validPage - 1) * validLimit;
     const paginatedItems = items.slice(startIndex, startIndex + validLimit);
 
-    const transformedItems = paginatedItems
-      .map((item) => {
-        // Validate item structure
-        if (!item.product) {
-          logger.warn(`[CART] Item without product found in cart for user: ${userId}`);
-          return null;
-        }
+    const transformedItems = [];
 
-        return {
-          product: {
-            _id: item.product._id,
-            name: item.product.name,
-            slug: item.product.slug,
-            images: item.product.images || [],
-            original_price: parseFloat(item.product.original_price?.toString() || "0"),
-            sale_price: parseFloat(item.product.sale_price?.toString() || "0"),
-            isActive: item.product.isActive,
-          },
-          selected_variant: item.selected_variant
-            ? {
-                color: typeof item.selected_variant.color === "object" ? item.selected_variant.color : { name: item.selected_variant.color, hex: null },
-                size: item.selected_variant.size,
-                sku: item.selected_variant.sku,
-                price: parseFloat(item.selected_variant.price?.toString() || "0"),
-                stock: item.selected_variant.stock || 0,
-                image: item.selected_variant.image || { url: "", alt: "" },
-              }
-            : null,
-          quantity: item.quantity || 0,
-          unit_price: parseFloat(item.unit_price?.toString() || "0"),
-          total_price: parseFloat(item.total_price?.toString() || "0"),
-          saved_for_later: Boolean(item.saved_for_later),
-          added_at: item.added_at,
-          updated_at: item.updated_at,
-        };
-      })
-      .filter(Boolean); // Remove null items
+    for (const item of paginatedItems) {
+      if (!item.product) {
+        logger.warn(`[CART] Item without product found in cart for user: ${userId}`);
+        continue;
+      }
+
+      // Tìm variant theo selected_variant
+      const variant = await Variant.findOne({
+        product_id: item.product._id,
+        size: item.selected_variant?.size,
+        "color.name": item.selected_variant?.color?.name,
+      });
+
+      if (!variant) {
+        logger.warn(`[CART] Không tìm thấy biến thể phù hợp cho sản phẩm ${item.product._id}`);
+        continue;
+      }
+
+      const unitPrice = variant.sale_price && parseFloat(variant.sale_price.toString()) > 0 ? parseFloat(variant.sale_price.toString()) : parseFloat(variant.price.toString());
+
+      const totalPrice = unitPrice * (item.quantity || 0);
+
+      transformedItems.push({
+        product: {
+          _id: item.product._id,
+          name: item.product.name,
+          slug: item.product.slug,
+          images: item.product.images || [],
+          original_price: parseFloat(item.product.original_price?.toString() || "0"),
+          sale_price: parseFloat(item.product.sale_price?.toString() || "0"),
+          isActive: item.product.isActive,
+        },
+        selected_variant: {
+          color: variant.color,
+          size: variant.size,
+          sku: variant.sku,
+          price: unitPrice,
+          stock: variant.stock,
+          image: variant.image || { url: "", alt: "" },
+        },
+        quantity: item.quantity || 0,
+        unit_price: unitPrice,
+        total_price: totalPrice,
+        saved_for_later: Boolean(item.saved_for_later),
+        added_at: item.added_at,
+        updated_at: item.updated_at,
+      });
+    }
 
     return {
       _id: cartObj._id,
@@ -229,27 +239,23 @@ const MAX_QUANTITY_PER_ITEM = 10;
 
 export const addItem = async (userId, productId, variant, quantity) => {
   try {
-    // Validate inputs
     if (!userId || !productId || !variant || !quantity) {
       throw new Error("Missing required parameters for addItem");
     }
 
     logger.info(`[CART] Adding item to cart - User: ${userId}, Product: ${productId}, Quantity: ${quantity}`);
 
+    // Lấy Variant từ DB và giá
     const { variant: dbVariant, currentPrice } = await validateProductAndVariant(productId, variant, quantity);
 
     const cart = await getOrCreateCart(userId);
 
-    // Find existing item with same product and exact variant match
     const existingItemIndex = cart.items.findIndex((item) => {
       const itemProductId = item.product?._id?.toString() || item.product?.toString();
-      const matchProduct = itemProductId === productId.toString();
-      const matchColor = item.selected_variant?.color?.name === variant.color.name;
-      const matchSize = item.selected_variant?.size === variant.size;
-      const notSavedForLater = !item.saved_for_later;
-
-      return matchProduct && matchColor && matchSize && notSavedForLater;
+      return itemProductId === productId.toString() && item.selected_variant?.color?.name === variant.color.name && item.selected_variant?.size === variant.size && !item.saved_for_later;
     });
+
+    const now = new Date();
 
     if (existingItemIndex > -1) {
       const newQuantity = cart.items[existingItemIndex].quantity + quantity;
@@ -258,15 +264,13 @@ export const addItem = async (userId, productId, variant, quantity) => {
         throw new Error(`Bạn chỉ có thể mua tối đa ${MAX_QUANTITY_PER_ITEM} sản phẩm mỗi loại.`);
       }
 
-      // Re-validate with new quantity
-      await validateProductAndVariant(productId, variant, newQuantity);
+      await validateProductAndVariant(productId, variant, newQuantity); // Revalidate tồn kho
 
       cart.items[existingItemIndex].quantity = newQuantity;
       cart.items[existingItemIndex].unit_price = currentPrice;
       cart.items[existingItemIndex].total_price = newQuantity * currentPrice;
-      cart.items[existingItemIndex].updated_at = new Date();
+      cart.items[existingItemIndex].updated_at = now;
 
-      // Update variant info from database
       cart.items[existingItemIndex].selected_variant = {
         color: dbVariant.color,
         size: dbVariant.size,
@@ -282,7 +286,6 @@ export const addItem = async (userId, productId, variant, quantity) => {
         throw new Error(`Bạn chỉ có thể mua tối đa ${MAX_QUANTITY_PER_ITEM} sản phẩm mỗi loại.`);
       }
 
-      // Add new item with complete variant data from database
       cart.items.push({
         product: productId,
         selected_variant: {
@@ -297,14 +300,14 @@ export const addItem = async (userId, productId, variant, quantity) => {
         unit_price: currentPrice,
         total_price: quantity * currentPrice,
         saved_for_later: false,
-        added_at: new Date(),
-        updated_at: new Date(),
+        added_at: now,
+        updated_at: now,
       });
 
       logger.info(`[CART] Added new item ${dbVariant.sku} x ${quantity}`);
     }
 
-    // Clear applied coupon when cart changes
+    // Reset coupon nếu giỏ thay đổi
     if (cart.applied_coupon?.code) {
       logger.info(`[CART] Clearing coupon ${cart.applied_coupon.code} after cart change`);
       cart.applied_coupon = {};
@@ -312,7 +315,6 @@ export const addItem = async (userId, productId, variant, quantity) => {
     }
 
     await cart.save();
-
     logger.info(`[CART] Cart saved successfully for user ${userId}`);
     return cart;
   } catch (error) {
@@ -485,8 +487,7 @@ const saveForLater = async (userId, productId, variant) => {
       const itemColor = typeof item.selected_variant?.color === "object" ? item.selected_variant?.color?.name : item.selected_variant?.color;
 
       const itemSize = item.selected_variant?.size?.toString();
-
-      const match = itemProductId === productId.toString() && itemColor === variant.color && itemSize === variant.size?.toString() && !item.saved_for_later;
+      const match = itemProductId === productId.toString() && itemColor === (typeof variant.color === "object" ? variant.color.name : variant.color) && itemSize === variant.size?.toString() && !item.saved_for_later;
 
       if (match) {
         console.log("==> MATCH FOUND WITH ITEM:");
@@ -521,50 +522,39 @@ const saveForLater = async (userId, productId, variant) => {
 };
 
 // Chuyển sản phẩm từ "save for later" về giỏ hàng
-const moveToCart = async (userId, productId, variant) => {
+export const moveToCart = async (req, res) => {
   try {
-    const cart = await getOrCreateCart(userId);
+    const { user_id, productId, variant } = req.body;
 
-    logger.info(`[CART] moveToCart - Cart items: ${JSON.stringify(cart.items, null, 2)}`);
-    logger.info(`[CART] Tìm productId: ${productId}, variant: ${JSON.stringify(variant)}`);
+    // Xử lý color để lấy tên đúng
+    const variantColorName = typeof variant.color === "object" ? variant.color.name : variant.color;
 
-    const itemIndex = cart.items.findIndex((item) => {
-      const itemColor = typeof item.selected_variant?.color === "object" ? item.selected_variant.color?.name : item.selected_variant?.color;
+    const cart = await Cart.findOne({ user_id });
 
-      logger.info(`[CART] So sánh:
-    productId=${item.product?._id?.toString()} vs ${productId.toString()}
-    color=${itemColor} vs ${variant.color}
-    size=${item.selected_variant?.size} vs ${variant.size}
-    saved_for_later=${item.saved_for_later}`);
+    if (!cart) {
+      return res.status(404).json({ message: "Cart not found" });
+    }
 
-      return item.product?._id?.toString() === productId.toString() && itemColor === variant.color && item.selected_variant?.size === variant.size && item.saved_for_later;
+    const existingItem = cart.items.find((item) => {
+      const itemColorName = typeof item.variant.color === "object" ? item.variant.color.name : item.variant.color;
+
+      return item.product_id.toString() === productId && itemColorName === variantColorName && item.variant.size?.toString() === variant.size?.toString() && item.saved_for_later;
     });
-    if (itemIndex === -1) {
-      throw new Error("Sản phẩm không tồn tại trong danh sách lưu sau");
+
+    if (!existingItem) {
+      return res.status(404).json({ message: "Item not found in saved for later" });
     }
 
-    if (!cart.items[itemIndex].saved_for_later) {
-      logger.info(`[CART] Sản phẩm ${productId} đã ở trong giỏ hàng của user ${userId}`);
-      return cart;
-    }
-
-    logger.info(`[CART] Gọi validateProductAndVariant`);
-    await validateProductAndVariant(productId, variant, cart.items[itemIndex].quantity);
-
-    cart.items[itemIndex].saved_for_later = false;
-    cart.items[itemIndex].updated_at = new Date();
+    existingItem.saved_for_later = false;
 
     await cart.save();
 
-    logger.info(`[CART] Chuyển sản phẩm ${productId} từ lưu sau về giỏ hàng cho user ${userId}`);
-    return cart;
+    return res.status(200).json({ message: "Item moved to cart", cart });
   } catch (error) {
-    logger.error(`[CART] Lỗi khi chuyển sản phẩm về giỏ hàng: ${error.message}`);
-    throw error;
+    console.error("Error moving item to cart:", error);
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
-// Áp dụng mã giảm giá
 const applyCoupon = async (userId, couponCode) => {
   const cart = await getOrCreateCart(userId);
 
@@ -579,7 +569,8 @@ const applyCoupon = async (userId, couponCode) => {
 
   const productIds = activeItems.map((item) => item.product.toString());
 
-  const couponValidation = await applyCoupon(couponCode, userId, subtotal, productIds);
+  // 👉 GỌI validateCoupon thay vì applyCoupon để tránh đệ quy
+  const couponValidation = await validateCoupon(couponCode, userId, subtotal, productIds);
 
   if (!couponValidation.isValid) {
     throw new Error("Mã giảm giá không hợp lệ");
@@ -721,26 +712,26 @@ const bulkUpdateItems = async (userId, updates) => {
 };
 
 // Sync giá của tất cả items trong cart với giá hiện tại
-
 const syncCartPrices = async (userId) => {
   try {
     const cart = await getOrCreateCart(userId);
 
     for (const item of cart.items) {
       try {
-        // Validate sản phẩm & variant, lấy giá hiện tại
-        const { currentPrice } = await validateProductAndVariant(item.product, item.selected_variant, 1);
+        const { currentPrice, variant: validatedVariant } = await validateProductAndVariant(item.product, item.selected_variant, item.quantity);
 
-        const oldPrice = item.unit_price != null ? parseFloat(item.unit_price.toString()) : 0;
+        const oldPrice = parseFloat(item.unit_price?.toString() || 0);
 
         if (oldPrice !== currentPrice) {
           item.unit_price = currentPrice;
           item.total_price = item.quantity * currentPrice;
           item.updated_at = new Date();
         }
-      } catch (error) {
-        // Log cảnh báo, không throw để không fail cả quá trình
-        logger.warn(`[CART] Không thể sync giá cho item ${item.product}: ${error.message}`);
+
+        item.selected_variant.price = validatedVariant.price;
+        item.selected_variant.stock = validatedVariant.stock;
+      } catch (err) {
+        logger.warn(`[CART] Không thể sync giá cho item ${item.product}: ${err.message}`);
       }
     }
 
@@ -845,6 +836,83 @@ const validateCartForCheckout = async (userId) => {
       errors: [{ error: error.message }],
     };
   }
+};
+
+const validateCoupon = async (code, userId, subtotal, productIds) => {
+  const now = new Date();
+  const coupon = await couponModel.findOne({ code: code.toUpperCase() });
+
+  if (!coupon) {
+    return { isValid: false, message: "Coupon không tồn tại" };
+  }
+
+  // Kiểm tra trạng thái
+  if (!coupon.isActive) {
+    return { isValid: false, message: "Coupon đã bị vô hiệu hóa" };
+  }
+
+  // Kiểm tra ngày hiệu lực
+  if (coupon.startDate && now < coupon.startDate) {
+    return { isValid: false, message: "Mã giảm giá chưa bắt đầu" };
+  }
+
+  if (coupon.expiryDate && now > coupon.expiryDate) {
+    return { isValid: false, message: "Mã giảm giá đã hết hạn" };
+  }
+
+  // Giới hạn lượt dùng toàn hệ thống
+  if (coupon.usageLimit !== null && coupon.usageCount >= coupon.usageLimit) {
+    return { isValid: false, message: "Mã giảm giá đã hết lượt sử dụng" };
+  }
+
+  // Giới hạn lượt dùng theo user
+  const userUsageCount = await orderModel.countDocuments({
+    user: userId,
+    "applied_coupon.code": coupon.code,
+  });
+
+  if (userUsageCount >= coupon.perUserLimit) {
+    return { isValid: false, message: "Bạn đã sử dụng mã này quá số lần cho phép" };
+  }
+
+  // Kiểm tra điều kiện chi tiêu
+  if (subtotal < coupon.minSpend) {
+    return { isValid: false, message: `Bạn cần mua tối thiểu ${coupon.minSpend}đ để áp dụng mã` };
+  }
+
+  if (coupon.maxSpend !== null && subtotal > coupon.maxSpend) {
+    return { isValid: false, message: `Tổng đơn không được vượt quá ${coupon.maxSpend}đ để áp dụng mã` };
+  }
+
+  // Kiểm tra sản phẩm được áp dụng
+  const includesProduct = coupon.products.length === 0 || coupon.products.some((id) => productIds.includes(id.toString()));
+  const excludesProduct = coupon.excludedProducts.some((id) => productIds.includes(id.toString()));
+
+  if (!includesProduct || excludesProduct) {
+    return { isValid: false, message: "Có sản phẩm không áp dụng được mã này" };
+  }
+
+  // Nếu có giới hạn user cụ thể
+  if (coupon.userRestrictions?.length > 0 && !coupon.userRestrictions.map((id) => id.toString()).includes(userId.toString())) {
+    return { isValid: false, message: "Mã giảm giá không áp dụng cho tài khoản của bạn" };
+  }
+
+  // === TÍNH GIÁ TRỊ GIẢM GIÁ ===
+  let discountAmount = 0;
+  if (coupon.discountType === "percentage") {
+    discountAmount = (subtotal * coupon.discountValue) / 100;
+  } else {
+    discountAmount = coupon.discountValue;
+  }
+
+  const finalAmount = Math.max(0, subtotal - discountAmount);
+
+  return {
+    isValid: true,
+    discountAmount,
+    finalAmount,
+    coupon,
+  };
 };
 
 export default {

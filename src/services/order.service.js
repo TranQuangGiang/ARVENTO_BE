@@ -135,21 +135,14 @@ const checkAndUpdateStock = async (items) => {
   await Promise.all(updates);
   logger.info(`[ORDER] Successfully updated stock for ${validatedItems.length} items`);
 };
-// Tính lại subtotal từ items
-const calculateSubtotal = (items) => {
-  return items.reduce((sum, item) => {
-    const price = Number(item.price); // cần đảm bảo price có trong từng item
-    const quantity = Number(item.quantity || 1);
-    return sum + price * quantity;
-  }, 0);
-};
-// tao don hàng từ các item đc chọn trong giỏ hàng
+
 const createOrder = async (orderData) => {
   try {
     const { user, items, applied_coupon, shipping_address, billing_address, payment_method = "cod", note, address, shipping_fee = 0 } = orderData;
 
     logger.info(`[ORDER] Creating order for user: ${user}, items: ${items.length}`);
 
+    // Lấy snapshot địa chỉ giao hàng
     let shippingAddressSnapshot = null;
     if (shipping_address) {
       const shippingAddr = await Address.findById(shipping_address);
@@ -168,6 +161,7 @@ const createOrder = async (orderData) => {
       };
     }
 
+    // Lấy snapshot địa chỉ thanh toán
     let billingAddressSnapshot = null;
     if (billing_address) {
       const billingAddr = await Address.findById(billing_address);
@@ -186,13 +180,47 @@ const createOrder = async (orderData) => {
       };
     }
 
-    // Kiểm tra tồn kho
-    await checkAndUpdateStock(items);
+    // Xử lý từng item: lấy variant, tính giá, trừ tồn kho
+    let rawSubtotal = 0;
+    const finalItems = [];
 
-    // Tính subtotal
-    const rawSubtotal = calculateSubtotal(items);
+    for (const item of items) {
+      const { product, selected_variant, quantity } = item;
 
-    // Áp dụng coupon (nếu có)
+      const variant = await Variant.findOne({
+        product_id: product,
+        size: selected_variant.size,
+        "color.name": selected_variant.color.name,
+      });
+
+      if (!variant) {
+        throw new Error(`Không tìm thấy biến thể sản phẩm: ${selected_variant.color.name} - ${selected_variant.size}`);
+      }
+
+      if (variant.stock < quantity) {
+        throw new Error(`Sản phẩm ${variant.sku || "không xác định"} không đủ tồn kho`);
+      }
+
+      const unitPrice = variant.sale_price && parseFloat(variant.sale_price.toString()) > 0 ? parseFloat(variant.sale_price.toString()) : parseFloat(variant.price.toString());
+
+      const itemTotal = unitPrice * quantity;
+      rawSubtotal += itemTotal;
+
+      finalItems.push({
+        product,
+        variant: variant._id,
+        quantity,
+        selected_variant,
+        unit_price: mongoose.Types.Decimal128.fromString(unitPrice.toFixed(2)),
+        total_price: mongoose.Types.Decimal128.fromString(itemTotal.toFixed(2)),
+      });
+
+      // Trừ tồn kho
+      variant.stock -= quantity;
+      await variant.save();
+    }
+
+    // Áp dụng mã giảm giá nếu có
     let discountAmount = 0;
     let couponPayload = undefined;
 
@@ -208,7 +236,6 @@ const createOrder = async (orderData) => {
         throw new Error(`Mã giảm giá "${couponCode}" đã hết hạn hoặc không còn hiệu lực`);
       }
 
-      // Kiểm tra hạn mức sử dụng theo từng user (nếu có)
       if (coupon.perUserLimit) {
         const usedCount = await Order.countDocuments({
           user,
@@ -220,22 +247,20 @@ const createOrder = async (orderData) => {
         }
       }
 
-      // Kiểm tra min/max spend
       if (coupon.minSpend && rawSubtotal < coupon.minSpend) {
         throw new Error(`Đơn hàng cần tối thiểu ${coupon.minSpend.toLocaleString()}₫ để dùng mã "${coupon.code}"`);
       }
+
       if (coupon.maxSpend && rawSubtotal > coupon.maxSpend) {
         throw new Error(`Đơn hàng vượt quá mức tối đa ${coupon.maxSpend.toLocaleString()}₫ cho mã "${coupon.code}"`);
       }
 
-      // Tính giảm giá
       if (coupon.discountType === "percentage") {
         discountAmount = rawSubtotal * (coupon.discountValue / 100);
       } else if (coupon.discountType === "fixed_amount") {
         discountAmount = coupon.discountValue;
       }
 
-      // Không để tổng âm
       discountAmount = Math.min(discountAmount, rawSubtotal);
 
       couponPayload = {
@@ -244,16 +269,16 @@ const createOrder = async (orderData) => {
         discount_type: coupon.discountType,
       };
 
-      // Cập nhật usageCount
       coupon.usageCount += 1;
       await coupon.save();
     }
 
     const total = Math.max(0, rawSubtotal - discountAmount + shipping_fee);
 
+    // Tạo đơn hàng
     const orderPayload = {
       user,
-      items,
+      items: finalItems,
       subtotal: mongoose.Types.Decimal128.fromString(rawSubtotal.toFixed(2)),
       shipping_fee: mongoose.Types.Decimal128.fromString(shipping_fee.toFixed(2)),
       total: mongoose.Types.Decimal128.fromString(total.toFixed(2)),
@@ -266,6 +291,7 @@ const createOrder = async (orderData) => {
       ...(couponPayload && { applied_coupon: couponPayload }),
       ...(address && { address }),
     };
+
     const order = await Order.create(orderPayload);
 
     logger.info(`[ORDER] Created order: ${order._id}`);
@@ -282,7 +308,6 @@ const createOrderFromCart = async (userId, orderData) => {
     logger.info(`[ORDER] Creating order from cart for user: ${userId}`);
 
     const cart = await cartService.getCart(userId, false);
-
     if (!cart || !cart.items || cart.items.length === 0) {
       throw new Error("Giỏ hàng trống");
     }
@@ -292,16 +317,85 @@ const createOrderFromCart = async (userId, orderData) => {
       throw new Error("Không có sản phẩm nào trong giỏ hàng để tạo đơn hàng");
     }
 
-    const orderItems = activeItems.map((cartItem) => ({
-      product: cartItem.product,
-      selected_variant: cartItem.selected_variant,
-      quantity: cartItem.quantity,
-      unit_price: Number(cartItem.unit_price),
-      total_price: Number(cartItem.total_price),
-    }));
+    // ----- Xử lý snapshot địa chỉ giao hàng -----
+    let shippingAddressSnapshot = null;
+    if (shipping_address) {
+      const shippingAddr = await Address.findById(shipping_address);
+      if (!shippingAddr || shippingAddr.user.toString() !== userId.toString()) {
+        throw new Error("Địa chỉ giao hàng không hợp lệ");
+      }
 
-    const subtotal = orderItems.reduce((sum, item) => sum + item.total_price, 0);
+      shippingAddressSnapshot = {
+        name: shippingAddr.name,
+        phone: shippingAddr.phone,
+        detail: shippingAddr.detail,
+        ward: shippingAddr.ward,
+        district: shippingAddr.district,
+        province: shippingAddr.province,
+        isDefault: shippingAddr.isDefault,
+      };
+    }
 
+    // ----- Xử lý snapshot địa chỉ thanh toán -----
+    let billingAddressSnapshot = null;
+    if (billing_address) {
+      const billingAddr = await Address.findById(billing_address);
+      if (!billingAddr || billingAddr.user.toString() !== userId.toString()) {
+        throw new Error("Địa chỉ thanh toán không hợp lệ");
+      }
+
+      billingAddressSnapshot = {
+        name: billingAddr.name,
+        phone: billingAddr.phone,
+        detail: billingAddr.detail,
+        ward: billingAddr.ward,
+        district: billingAddr.district,
+        province: billingAddr.province,
+        isDefault: billingAddr.isDefault,
+      };
+    }
+
+    // Chuẩn bị dữ liệu items: kiểm tra tồn kho, tính giá theo Variant
+    let subtotal = 0;
+    const orderItems = [];
+
+    for (const cartItem of activeItems) {
+      const { product, selected_variant, quantity } = cartItem;
+
+      const variant = await Variant.findOne({
+        product_id: product,
+        size: selected_variant.size,
+        "color.name": selected_variant.color.name,
+      });
+
+      if (!variant) {
+        throw new Error(`Không tìm thấy biến thể sản phẩm: ${selected_variant.color.name} - ${selected_variant.size}`);
+      }
+
+      if (variant.stock < quantity) {
+        throw new Error(`Sản phẩm ${variant.sku || "không xác định"} không đủ tồn kho`);
+      }
+
+      const unitPrice = variant.sale_price && parseFloat(variant.sale_price.toString()) > 0 ? parseFloat(variant.sale_price.toString()) : parseFloat(variant.price.toString());
+
+      const totalPrice = unitPrice * quantity;
+      subtotal += totalPrice;
+
+      orderItems.push({
+        product,
+        variant: variant._id,
+        selected_variant,
+        quantity,
+        unit_price: mongoose.Types.Decimal128.fromString(unitPrice.toFixed(2)),
+        total_price: mongoose.Types.Decimal128.fromString(totalPrice.toFixed(2)),
+      });
+
+      // Trừ tồn kho
+      variant.stock -= quantity;
+      await variant.save();
+    }
+
+    // Áp dụng mã giảm giá (nếu có)
     let discountAmount = 0;
     let couponPayload;
 
@@ -356,8 +450,8 @@ const createOrderFromCart = async (userId, orderData) => {
       subtotal: mongoose.Types.Decimal128.fromString(subtotal.toFixed(2)),
       shipping_fee: mongoose.Types.Decimal128.fromString(shipping_fee.toFixed(2)),
       total: mongoose.Types.Decimal128.fromString(finalTotal.toFixed(2)),
-      shipping_address,
-      billing_address,
+      shipping_address: shippingAddressSnapshot,
+      billing_address: billingAddressSnapshot,
       payment_method,
       note: note || "",
       status: "pending",
