@@ -4,7 +4,7 @@ import variantService from '../services/variant.services.js';
 import responseUtil from '../utils/response.util.js';
 import Product from '../models/product.model.js';
 import Variant from '../models/variant.model.js';
-
+import mongoose from 'mongoose';
 const generateVariants = async (req, res) => {
   try {
     const { options, overwrite } = req.body;
@@ -44,11 +44,11 @@ if ('size' in update || 'color' in update) {
       }
     }
 
-    // Lấy product để kiểm tra sale_price & imageIndex
-    const product = await Product.findById(productId).lean();
-    if (!product) {
-      return responseUtil.errorResponse(res, null, 'Sản phẩm không tồn tại');
-    }
+    // // Lấy product để kiểm tra sale_price & imageIndex
+    // const product = await Product.findById(productId).lean();
+    // if (!product) {
+    //   return responseUtil.errorResponse(res, null, 'Sản phẩm không tồn tại');
+    // }
     //  Kiểm tra trùng size + color trước khi cập nhật
     if (update.size || update.color) {
       const sizeToCheck = update.size;
@@ -73,18 +73,46 @@ if ('size' in update || 'color' in update) {
     }
 
 
-    // Kiểm tra giá: variant.price <= product.sale_price
-    if (
-      update.price !== undefined &&
-      product.sale_price !== undefined &&
-      Number(update.price) > Number(product.sale_price)
-    ) {
+    // // Kiểm tra giá: variant.price <= product.sale_price
+    // if (
+    //   update.price !== undefined &&
+    //   product.sale_price !== undefined &&
+    //   Number(update.price) > Number(product.sale_price)
+    // ) {
+    //   return responseUtil.errorResponse(
+    //     res,
+    //     null,
+    //     'Giá biến thể không được lớn hơn giá khuyến mãi của sản phẩm'
+    //   );
+    // }
+// Lấy product để lấy original_price
+    const product = await Product.findById(productId).lean();
+    if (!product) {
+      return responseUtil.errorResponse(res, null, 'Sản phẩm không tồn tại');
+    }
+
+    // Nếu có gửi sale_price → kiểm tra
+  if ('sale_price' in update) {
+  if (update.sale_price === null || update.sale_price === '') {
+    // Nếu người dùng gửi null hoặc rỗng => loại bỏ field này để giữ nguyên
+    delete update.sale_price;
+  } else {
+    const sale = parseFloat(update.sale_price?.toString() || '0');
+    const originalPrice = parseFloat(product.original_price?.toString() || '0');
+
+    if (sale > originalPrice) {
       return responseUtil.errorResponse(
         res,
         null,
-        'Giá biến thể không được lớn hơn giá khuyến mãi của sản phẩm'
+        'Giá khuyến mãi không được lớn hơn giá gốc của sản phẩm'
       );
     }
+
+    // Ép kiểu đúng cho Decimal128
+    update.sale_price = mongoose.Types.Decimal128.fromString(sale.toString());
+  }
+}
+
 
     const imageIndex = parseInt(req.body.imageIndex);
     if (!isNaN(imageIndex)) {
