@@ -333,7 +333,6 @@ const moveToCart = async (req, res) => {
 };
 
 // Bulk update nhiều items
-// Bulk update nhiều items
 const bulkUpdateItemsController = async (req, res) => {
   try {
     const userId = req.user._id?.toString();
