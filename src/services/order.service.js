@@ -7,7 +7,7 @@ import logger from "../config/logger.config.js";
 import ExcelJS from "exceljs";
 import mongoose from "mongoose";
 import Roles from "../constants/role.enum.js";
-import { getCancelConfirmationEmailTemplate, getReturnApprovedEmailTemplate, getReturnRequestEmailTemplate, sendEmail } from "../utils/email.util.js";
+import { getCancelConfirmationEmailTemplate, getOrderStatusChangedEmailTemplate, getReturnApprovedEmailTemplate, getReturnRequestEmailTemplate, sendEmail } from "../utils/email.util.js";
 
 // Validate và kiểm tra tồn kho cho variant
 const validateOrderItem = async (item) => {
@@ -150,20 +150,40 @@ const createOrder = async (orderData) => {
 
     logger.info(`[ORDER] Creating order for user: ${user}, items: ${items.length}`);
 
-    // Validate shipping address
+    let shippingAddressSnapshot = null;
     if (shipping_address) {
       const shippingAddr = await Address.findById(shipping_address);
       if (!shippingAddr || shippingAddr.user.toString() !== user.toString()) {
         throw new Error("Địa chỉ giao hàng không hợp lệ");
       }
+
+      shippingAddressSnapshot = {
+        name: shippingAddr.name,
+        phone: shippingAddr.phone,
+        detail: shippingAddr.detail,
+        ward: shippingAddr.ward,
+        district: shippingAddr.district,
+        province: shippingAddr.province,
+        isDefault: shippingAddr.isDefault,
+      };
     }
 
-    // Validate billing address
+    let billingAddressSnapshot = null;
     if (billing_address) {
       const billingAddr = await Address.findById(billing_address);
       if (!billingAddr || billingAddr.user.toString() !== user.toString()) {
         throw new Error("Địa chỉ thanh toán không hợp lệ");
       }
+
+      billingAddressSnapshot = {
+        name: billingAddr.name,
+        phone: billingAddr.phone,
+        detail: billingAddr.detail,
+        ward: billingAddr.ward,
+        district: billingAddr.district,
+        province: billingAddr.province,
+        isDefault: billingAddr.isDefault,
+      };
     }
 
     // Kiểm tra tồn kho
@@ -237,16 +257,15 @@ const createOrder = async (orderData) => {
       subtotal: mongoose.Types.Decimal128.fromString(rawSubtotal.toFixed(2)),
       shipping_fee: mongoose.Types.Decimal128.fromString(shipping_fee.toFixed(2)),
       total: mongoose.Types.Decimal128.fromString(total.toFixed(2)),
-      shipping_address,
-      billing_address,
+      shipping_address: shippingAddressSnapshot,
+      billing_address: billingAddressSnapshot,
       payment_method,
       note: note || "",
       status: "pending",
       payment_status: "pending",
       ...(couponPayload && { applied_coupon: couponPayload }),
-      ...(address && { address }), // backward compatibility
+      ...(address && { address }),
     };
-
     const order = await Order.create(orderPayload);
 
     logger.info(`[ORDER] Created order: ${order._id}`);
@@ -405,10 +424,9 @@ const getMyOrders = async (user, filters = {}) => {
 const getOrderDetail = async (id, userId = null) => {
   try {
     const query = { _id: id };
-    if (userId) query.user = userId; // Restrict to user's own orders if userId provided
+    if (userId) query.user = userId;
 
-    const order = await Order.findOne(query).populate("user", "name email phone").populate("items.product", "name images slug description").populate("shipping_address", "name phone detail ward district province isDefault").populate("billing_address", "name phone detail ward district province isDefault").populate("timeline.changedBy", "name email");
-
+    const order = await Order.findOne(query).populate("user", "name email phone").populate("items.product", "name images slug description").populate("timeline.changedBy", "name email");
     if (!order) {
       throw new Error("Không tìm thấy đơn hàng");
     }
@@ -420,7 +438,7 @@ const getOrderDetail = async (id, userId = null) => {
   }
 };
 
-const cancelOrder = async (orderId, userId) => {
+const cancelOrder = async (orderId, userId, note) => {
   try {
     const order = await Order.findById(orderId);
     if (!order) {
@@ -446,8 +464,13 @@ const cancelOrder = async (orderId, userId) => {
     order.status = "cancelled";
     order.payment_status = "cancelled";
 
-    // Add timeline entry
-    await order.addTimelineEntry("cancelled", userId, "Đơn hàng đã được hủy bởi khách hàng");
+    order.timeline ??= [];
+    order.timeline.push({
+      status: "cancelled",
+      changedBy: userId,
+      note: note || "Đơn hàng đã được hủy bởi khách hàng",
+      changedAt: new Date(),
+    });
 
     // Restore stock for all items
     const stockUpdates = [];
@@ -507,6 +530,7 @@ const cancelOrder = async (orderId, userId) => {
     await Promise.all(stockUpdates);
 
     logger.info(`[ORDER] Successfully cancelled order ${orderId} and restored stock`);
+    await order.save();
     return order;
   } catch (error) {
     logger.error(`[ORDER] Error cancelling order ${orderId}: ${error.message}`);
@@ -605,11 +629,12 @@ const allowedTransitions = {
   cancelled: [],
 };
 const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isReturnRequested = undefined, userRole = Roles.ADMIN, currentUserId = null) => {
-  const order = await Order.findById(orderId);
+  const order = await Order.findById(orderId).populate("user");
   if (!order) throw new Error("Không tìm thấy đơn hàng");
 
   const currentStatus = order.status;
 
+  // Kiểm tra quyền cập nhật theo role
   if (userRole === Roles.ADMIN) {
     const allowedNext = allowedTransitions[currentStatus] || [];
     if (!allowedNext.includes(newStatus)) {
@@ -626,6 +651,7 @@ const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isRet
     }
   }
 
+  // Cập nhật trạng thái đơn hàng
   order.status = newStatus;
 
   if (typeof isReturnRequested === "boolean") {
@@ -641,20 +667,36 @@ const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isRet
   });
 
   await order.save();
-  if (userRole === Roles.ADMIN && currentStatus !== "returning" && newStatus === "returning" && order.user?.email) {
-    try {
-      const html = getReturnApprovedEmailTemplate({
-        fullName: order.user.fullName || "Khách hàng",
-        orderId: order._id,
-        note,
-        createdAt: order.createdAt,
-      });
 
-      await sendEmail(order.user.email, " Yêu cầu trả hàng đã được phê duyệt", html);
+  if (order.user?.email) {
+    try {
+      let html, subject;
+
+      if (userRole === Roles.ADMIN && currentStatus !== "returning" && newStatus === "returning") {
+        html = getReturnApprovedEmailTemplate({
+          fullName: order.user.fullName || "Khách hàng",
+          orderId: order._id,
+          note,
+          createdAt: order.createdAt,
+        });
+        subject = "📦 Yêu cầu trả hàng đã được phê duyệt";
+      } else {
+        html = getOrderStatusChangedEmailTemplate({
+          fullName: order.user.fullName || "Khách hàng",
+          orderId: order._id,
+          newStatus,
+          note,
+          changedAt: new Date(),
+        });
+        subject = `🔔 Đơn hàng #${order._id} đã chuyển sang trạng thái "${newStatus}"`;
+      }
+
+      await sendEmail(order.user.email, subject, html);
     } catch (err) {
-      console.error("[EMAIL] Gửi thông báo phê duyệt trả hàng thất bại:", err);
+      console.error("[EMAIL] Gửi email cập nhật trạng thái thất bại:", err);
     }
   }
+
   return order;
 };
 
@@ -675,6 +717,7 @@ export const clientRequestReturn = async (orderId, userId, note = "") => {
   if (order.is_return_requested) {
     throw new Error("Bạn đã yêu cầu trả hàng trước đó");
   }
+  const isNoteEmpty = !note || note.trim() === "";
 
   order.is_return_requested = true;
   order.timeline ??= [];
@@ -682,7 +725,7 @@ export const clientRequestReturn = async (orderId, userId, note = "") => {
     status: order.status,
     changedBy: userId,
     changedAt: new Date(),
-    note: note || "Khách hàng yêu cầu trả hàng",
+    note: isNoteEmpty ? "Khách hàng yêu cầu trả hàng" : note,
   });
 
   await order.save();
@@ -711,17 +754,6 @@ export const clientRequestReturn = async (orderId, userId, note = "") => {
 
 const getRecentOrders = async (limit = 10) => {
   return await Order.find().sort({ createdAt: -1 }).limit(limit).populate("user", "name email phone").populate("items.product", "name images slug price").populate("shipping_address", "name phone detail ward district province isDefault").populate("billing_address", "name phone detail ward district province isDefault");
-};
-const getRevenueByDate = async ({ from, to, groupBy = "day" }) => {
-  const match = { status: "completed" };
-  if (from || to) match.createdAt = {};
-  if (from) match.createdAt.$gte = new Date(from);
-  if (to) match.createdAt.$lte = new Date(to);
-
-  const dateFormat = groupBy === "month" ? { $dateToString: { format: "%Y-%m", date: "$createdAt" } } : { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } };
-
-  const result = await Order.aggregate([{ $match: match }, { $group: { _id: dateFormat, revenue: { $sum: "$total" } } }, { $sort: { _id: 1 } }]);
-  return result.map((r) => ({ date: r._id, revenue: r.revenue }));
 };
 
 const countOrdersByStatus = async () => {
@@ -821,7 +853,6 @@ export default {
   countNewOrders,
   sumOrderRevenue,
   countOrdersByStatus,
-  getRevenueByDate,
   getRecentOrders,
   exportOrders,
 

@@ -139,7 +139,7 @@ const orderSchema = new mongoose.Schema(
         default: "percentage",
       },
     },
-     applied_point_discount: {
+    applied_point_discount: {
       type: mongoose.Types.Decimal128,
       default: 0,
       min: 0,
@@ -150,13 +150,12 @@ const orderSchema = new mongoose.Schema(
       min: [0, "Tổng tiền không được âm"],
     },
     shipping_address: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Address",
-      required: [true, "Địa chỉ giao hàng là bắt buộc"],
+      type: Object,
+      required: true,
     },
     billing_address: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Address",
+      type: Object,
+      required: false,
     },
     shipping_fee: {
       type: mongoose.Types.Decimal128,
@@ -265,45 +264,6 @@ orderSchema.index({ "items.product": 1 });
 orderSchema.index({ payment_status: 1 });
 orderSchema.index({ shipping_address: 1 });
 
-// Pre-save middleware để tự động cập nhật totals
-orderSchema.pre("save", function (next) {
-  try {
-    this.updated_at = new Date();
-
-    // Tính toán subtotal từ các items
-    const subtotalValue = this.items.reduce((sum, item) => {
-      const itemTotal = parseFloat(item.total_price?.toString() || "0");
-      return sum + itemTotal;
-    }, 0);
-
-    this.subtotal = mongoose.Types.Decimal128.fromString(subtotalValue.toString());
-
-    // Tính toán total sau khi áp dụng coupon
-    let totalValue = subtotalValue;
-    if (this.applied_coupon?.discount_amount) {
-      const discountAmount = parseFloat(this.applied_coupon.discount_amount.toString());
-      totalValue = Math.max(0, subtotalValue - discountAmount);
-    }
-    const shippingFee = parseFloat(this.shipping_fee?.toString() || "0");
-    totalValue += shippingFee;
-
-    this.total = mongoose.Types.Decimal128.fromString(totalValue.toString());
-
-    // Add timeline entry if status changed
-    if (this.isModified("status") && !this.isNew) {
-      if (!this.timeline) this.timeline = [];
-      this.timeline.push({
-        status: this.status,
-        changedAt: new Date(),
-      });
-    }
-
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
-
 // Static methods
 orderSchema.statics.findByUser = function (userId) {
   return this.find({ user: userId }).sort({ created_at: -1 });
@@ -325,55 +285,5 @@ orderSchema.methods.canBeCancelled = function () {
 orderSchema.methods.canBeModified = function () {
   return ["pending"].includes(this.status);
 };
-
-orderSchema.methods.addTimelineEntry = function (status, changedBy, note) {
-  if (!this.timeline) this.timeline = [];
-  this.timeline.push({
-    status,
-    changedBy,
-    changedAt: new Date(),
-    note,
-  });
-  return this.save();
-};
-// Pre-save middleware
-orderSchema.pre("save", function (next) {
-  try {
-    this.updated_at = new Date();
-
-    // Tính subtotal
-    const subtotalValue = this.items.reduce((sum, item) => {
-      const itemTotal = parseFloat(item.total_price?.toString() || "0");
-      return sum + itemTotal;
-    }, 0);
-
-    this.subtotal = mongoose.Types.Decimal128.fromString(subtotalValue.toString());
-
-    // Áp dụng giảm từ điểm thưởng
-    const pointDiscount = parseFloat(this.applied_point_discount?.toString() || "0");
-
-    let totalValue = subtotalValue - pointDiscount;
-
-    if (this.applied_coupon?.discount_amount) {
-      const discountAmount = parseFloat(this.applied_coupon.discount_amount.toString());
-      totalValue -= discountAmount;
-    }
-
-    this.total = mongoose.Types.Decimal128.fromString(Math.max(0, totalValue).toString());
-
-    // timeline logic giữ nguyên
-    if (this.isModified("status") && !this.isNew) {
-      if (!this.timeline) this.timeline = [];
-      this.timeline.push({
-        status: this.status,
-        changedAt: new Date(),
-      });
-    }
-
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
 
 export default mongoose.model("Order", orderSchema);
