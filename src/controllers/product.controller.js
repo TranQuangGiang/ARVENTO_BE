@@ -1,7 +1,7 @@
 
-console.log("🚀 Controller loaded!");import {productService} from '../services/index.js';
+console.log("🚀 Controller loaded!"); import { productService } from '../services/index.js';
 // import { exportProducts as exportProductService } from '../services/product.service.js';
-import {baseResponse, generateSlug, parseQueryParams} from '../utils/index.js';
+import { baseResponse, generateSlug, parseQueryParams } from '../utils/index.js';
 import { logger } from '../config/index.js';
 import { Product, Variant, Option } from '../models/index.js';
 import { slugify } from '../utils/slugify.js';
@@ -9,8 +9,8 @@ import fs from 'fs';
 console.log("👉 baseResponse type:", typeof baseResponse);
 const getAllProducts = async (req, res) => {
   try {
-   logger.info(`[GET] /products - Query: ${JSON.stringify(req.query)}`);
-   const allowedFields = {
+    logger.info(`[GET] /products - Query: ${JSON.stringify(req.query)}`);
+    const allowedFields = {
       name: 'string',
       category_id: 'exact',
       tags: 'array',
@@ -126,51 +126,51 @@ const updateProduct = async (req, res) => {
     if (req.body.name && req.body.name !== product.name) {
       req.body.slug = slugify(req.body.name);
     }
-     if (req.body.options) {
-  // Lấy tất cả option trong DB
-  const allOptions = await Option.find({});
-  const validKeys = allOptions.map(opt => opt.key);
-    if (typeof req.body.options === 'string') {
-  try {
-    req.body.options = JSON.parse(req.body.options);
-  } catch (e) {
-    return baseResponse.badRequestResponse(res, null, "Trường 'options' không hợp lệ, phải là JSON hợp lệ");
-  }
-}
+    if (req.body.options) {
+      // Lấy tất cả option trong DB
+      const allOptions = await Option.find({});
+      const validKeys = allOptions.map(opt => opt.key);
+      if (typeof req.body.options === 'string') {
+        try {
+          req.body.options = JSON.parse(req.body.options);
+        } catch (e) {
+          return baseResponse.badRequestResponse(res, null, "Trường 'options' không hợp lệ, phải là JSON hợp lệ");
+        }
+      }
 
-  for (const [key, values] of Object.entries(req.body.options)) {
-    if (!validKeys.includes(key)) {
-      return baseResponse.badRequestResponse(res, null, `Invalid option key: ${key}`);
+      for (const [key, values] of Object.entries(req.body.options)) {
+        if (!validKeys.includes(key)) {
+          return baseResponse.badRequestResponse(res, null, `Invalid option key: ${key}`);
+        }
+
+        const option = allOptions.find(opt => opt.key === key);
+
+        // Trường hợp values là mảng các object (ví dụ color) hoặc mảng string (ví dụ size)
+        const valuesArray = Array.isArray(values) ? values : [values];
+
+        let allValid = true;
+
+        if (key === "color") {
+          allValid = valuesArray.every(valObj => {
+            return option.values.some(optVal =>
+              optVal.name.toLowerCase() === valObj.name.toLowerCase()
+            );
+          });
+        } else {
+          allValid = valuesArray.every(val =>
+            option.values.includes(val)
+          );
+        }
+
+        if (!allValid) {
+          return baseResponse.badRequestResponse(
+            res,
+            null,
+            `Invalid value(s) '${JSON.stringify(valuesArray)}' for option '${key}'`
+          );
+        }
+      }
     }
-
-    const option = allOptions.find(opt => opt.key === key);
-
-    // Trường hợp values là mảng các object (ví dụ color) hoặc mảng string (ví dụ size)
-    const valuesArray = Array.isArray(values) ? values : [values];
-
-    let allValid = true;
-
-    if (key === "color") {
-      allValid = valuesArray.every(valObj => {
-        return option.values.some(optVal =>
-          optVal.name.toLowerCase() === valObj.name.toLowerCase()
-        );
-      });
-    } else {
-      allValid = valuesArray.every(val =>
-        option.values.includes(val)
-      );
-    }
-
-    if (!allValid) {
-      return baseResponse.badRequestResponse(
-        res,
-        null,
-        `Invalid value(s) '${JSON.stringify(valuesArray)}' for option '${key}'`
-      );
-    }
-  }
-}
 
     // Gọi service để cập nhật sản phẩm
     const updatedProduct = await productService.updateProduct(id, {
@@ -194,9 +194,11 @@ const updateProduct = async (req, res) => {
             Variant.create({
               ...variant,
               product_id: id,
+              price: new mongoose.Types.Decimal128(product.original_price.toString()),
             })
           )
         );
+
       }
     }
 
@@ -280,7 +282,7 @@ const importProducts = async (req, res) => {
     console.log("productService.importProducts xử lý xong");
 
     // Clean up file
-  
+
     if (req.file.path && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
       console.log("🧹 Đã xóa file tạm:", req.file.path);
@@ -292,8 +294,8 @@ const importProducts = async (req, res) => {
     return baseResponse.successResponse(res, result, 'Products imported successfully');
   } catch (err) {
     console.log("[ERROR] Đã xảy ra lỗi trong importProducts:", err.message);
-     const status = err.statusCode || 500;
-  return baseResponse.errorResponse(res, null, err.message || 'Internal Server Error', status);
+    const status = err.statusCode || 500;
+    return baseResponse.errorResponse(res, null, err.message || 'Internal Server Error', status);
   }
 };
 
@@ -360,7 +362,7 @@ const setOptions = async (req, res) => {
   try {
     const { productId } = req.params;
     const { options } = req.body;
-  console.log("🟡 Dữ liệu nhận được từ client:", JSON.stringify(options, null, 2));
+    console.log("🟡 Dữ liệu nhận được từ client:", JSON.stringify(options, null, 2));
     if (!options || typeof options !== 'object') {
       return baseResponse.badRequestResponse(res, null, 'Thiếu hoặc sai định dạng options');
     }
@@ -379,8 +381,8 @@ const setOptions = async (req, res) => {
     const normalizeSizes = (arr) =>
       Array.isArray(arr)
         ? arr
-            .filter(v => typeof v === 'string' && v.trim())
-            .map(v => v.trim().toUpperCase())
+          .filter(v => typeof v === 'string' && v.trim())
+          .map(v => v.trim().toUpperCase())
         : [];
 
     const addUniqueSizes = (existing, incoming) => {
@@ -398,11 +400,11 @@ const setOptions = async (req, res) => {
     const normalizeColors = (arr) =>
       Array.isArray(arr)
         ? arr
-            .filter(v => v && typeof v === 'object' && typeof v.name === 'string')
-            .map(v => ({
-              name: capitalize(v.name.trim()),
-              hex: (typeof v.hex === 'string' ? v.hex.trim().toUpperCase() : '#CCCCCC')
-            }))
+          .filter(v => v && typeof v === 'object' && typeof v.name === 'string')
+          .map(v => ({
+            name: capitalize(v.name.trim()),
+            hex: (typeof v.hex === 'string' ? v.hex.trim().toUpperCase() : '#CCCCCC')
+          }))
         : [];
 
     const addUniqueColors = (existing, incoming) => {
@@ -434,18 +436,18 @@ const setOptions = async (req, res) => {
 
     const newColors = normalizeColors(options.color);
     product.options.color = addUniqueColors(product.options.color, newColors);
-product.markModified('options.color');
+    product.markModified('options.color');
     // Lưu DB
     await product.save();
-// Lưu DB
-// const result = await product.save();
+    // Lưu DB
+    // const result = await product.save();
 
-// 👉 THÊM LOG Ở ĐÂY
-console.log("✅ Product updated:", {
-  id: product._id.toString(),
-  size: product.options.size,
-  color: product.options.color
-});
+    // 👉 THÊM LOG Ở ĐÂY
+    console.log("✅ Product updated:", {
+      id: product._id.toString(),
+      size: product.options.size,
+      color: product.options.color
+    });
     return baseResponse.successResponse(res, product.options, 'Cập nhật thuộc tính thành công');
   } catch (err) {
     return baseResponse.errorResponse(res, null, err.message || 'Đã có lỗi xảy ra');
