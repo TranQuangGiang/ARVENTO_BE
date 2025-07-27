@@ -57,10 +57,10 @@ export const productValidate = {
       "number.min": "original_price phải lớn hơn hoặc bằng 0",
       "any.required": "original_price là bắt buộc",
     }),
-    sale_price: Joi.number().min(0).optional().less(Joi.ref("original_price")).messages({
-      "number.min": "sale_price phải lớn hơn hoặc bằng 0",
-      "number.less": "Giá khuyến mãi không được lớn hơn giá gốc",
-    }),
+    // sale_price: Joi.number().min(0).optional().less(Joi.ref("original_price")).messages({
+    //   "number.min": "sale_price phải lớn hơn hoặc bằng 0",
+    //   "number.less": "Giá khuyến mãi không được lớn hơn giá gốc",
+    // }),
     stock: Joi.number().integer().min(0).required().messages({
       "number.min": "stock phải lớn hơn hoặc bằng 0",
       "any.required": "stock là bắt buộc",
@@ -111,10 +111,10 @@ export const productValidate = {
     original_price: Joi.number().min(0).messages({
       "number.min": "original_price phải lớn hơn hoặc bằng 0",
     }),
-    sale_price: Joi.number().min(0).optional().less(Joi.ref("original_price")).messages({
-      "number.min": "sale_price phải lớn hơn hoặc bằng 0",
-      "number.less": "Giá khuyến mãi không được lớn hơn giá gốc",
-    }),
+    // sale_price: Joi.number().min(0).optional().less(Joi.ref("original_price")).messages({
+    //   "number.min": "sale_price phải lớn hơn hoặc bằng 0",
+    //   "number.less": "Giá khuyến mãi không được lớn hơn giá gốc",
+    // }),
     stock: Joi.number().integer().min(0).messages({
       "number.min": "stock phải lớn hơn hoặc bằng 0",
     }),

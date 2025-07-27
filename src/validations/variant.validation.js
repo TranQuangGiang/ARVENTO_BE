@@ -39,6 +39,11 @@ const variantSchema = Joi.object({
     'number.base': 'Giá phải là số',
     'number.min': 'Giá không được âm',
   }),
+    sale_price: Joi.number().min(0).allow(null).optional().messages({
+    'number.base': 'Giá khuyến mãi phải là số',
+    'number.min': 'Giá khuyến mãi không được âm',
+  }),
+
   image: imageSchema.optional(), //  Cho phép không truyền image
   imageIndex: Joi.number().min(0).optional().messages({
     'number.base': 'imageIndex phải là số',

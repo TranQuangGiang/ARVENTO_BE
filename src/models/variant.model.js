@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
-
+import Product from './product.model.js';
+import Cart from './cart.model.js';
 const variantSchema = new mongoose.Schema({
   product_id: {
     type: mongoose.Schema.Types.ObjectId,
@@ -37,11 +38,19 @@ const variantSchema = new mongoose.Schema({
   }
 }
 ,
-  price: {
+   price: {
     type: mongoose.Types.Decimal128,
+    required: true,
     min: [0, 'Giá không được âm'],
-    get: (v) => v ? parseFloat(v.toString()) : null // Chuyển Decimal128 thành số thường khi lấy dữ liệu
+    immutable: true, // Không cho chỉnh sửa thủ công
+    get: v => v ? parseFloat(v.toString()) : null
   },
+  sale_price: {
+  type: mongoose.Types.Decimal128,
+  min: 0,
+  default: null
+}
+,
 image: {
   type: {
     url: {
@@ -115,6 +124,30 @@ variantSchema.pre('remove', async function (next) {
   );
   next();
 });
+variantSchema.pre('validate', async function (next) {
+  if (this.isNew || this.isModified('product_id')) {
+    const product = await Product.findById(this.product_id);
+    if (!product) return next(new Error('Không tìm thấy sản phẩm cha'));
 
+    this.price = product.original_price;
+  }
+  next();
+});
+// Khi Variant bị xóa, xóa item chứa variant trong cart
+variantSchema.pre('remove', async function (next) {
+  await Cart.updateMany(
+    {},
+    {
+      $pull: {
+        items: {
+          'selected_variant.color': this.color.name,
+          'selected_variant.size': this.size,
+          product: this.product_id,
+        }
+      }
+    }
+  );
+  next();
+});
 const Variant = mongoose.model('Variant', variantSchema);
 export default Variant;

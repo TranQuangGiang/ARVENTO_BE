@@ -20,10 +20,8 @@ const generateVariants = async (productId, input) => {
   const images = input.images || {};
 
   // ✅ Base price
-  const basePrice =
-    product.sale_price && parseFloat(product.sale_price.toString()) > 0
-      ? parseFloat(product.sale_price.toString())
-      : parseFloat(product.original_price.toString());
+  const basePrice = parseFloat(product.original_price?.toString() || '0');
+
 
   // ✅ Lấy options riêng đã chọn của sản phẩm
   const validSizes = product.options?.get('size') || [];
@@ -37,35 +35,35 @@ const generateVariants = async (productId, input) => {
 
   // ✅ Chuẩn hoá input
   // Check size
-const rawInputSizes = (inputOptions.size || []);
-const emptySizes = rawInputSizes.filter(s => !s || !s.trim());
-if (emptySizes.length > 0) {
-  throw new Error(`Giá trị size không hợp lệ: trống hoặc rỗng`);
-}
-const inputSizes = rawInputSizes
-  .map(s => s.trim().toUpperCase());
-const duplicateSizes = inputSizes.filter(
-  (s, i, arr) => arr.indexOf(s) !== i
-);
-if (duplicateSizes.length > 0) {
-  throw new Error(`Size bị trùng lặp: ${[...new Set(duplicateSizes)].join(', ')}`);
-}
+  const rawInputSizes = (inputOptions.size || []);
+  const emptySizes = rawInputSizes.filter(s => !s || !s.trim());
+  if (emptySizes.length > 0) {
+    throw new Error(`Giá trị size không hợp lệ: trống hoặc rỗng`);
+  }
+  const inputSizes = rawInputSizes
+    .map(s => s.trim().toUpperCase());
+  const duplicateSizes = inputSizes.filter(
+    (s, i, arr) => arr.indexOf(s) !== i
+  );
+  if (duplicateSizes.length > 0) {
+    throw new Error(`Size bị trùng lặp: ${[...new Set(duplicateSizes)].join(', ')}`);
+  }
   // Check color
-const rawInputColors = (inputOptions.color || []);
-const emptyColors = rawInputColors.filter(
-  c => !c || typeof c !== 'object' || !c.name || !c.name.trim()
-);
-if (emptyColors.length > 0) {
-  throw new Error(`Color không hợp lệ: có giá trị rỗng hoặc thiếu name`);
-}
-const inputColors = rawInputColors
-  .map(c => c.name.toLowerCase());
-const duplicateColors = inputColors.filter(
-  (c, i, arr) => arr.indexOf(c) !== i
-);
-if (duplicateColors.length > 0) {
-  throw new Error(`Color bị trùng lặp: ${[...new Set(duplicateColors)].join(', ')}`);
-}
+  const rawInputColors = (inputOptions.color || []);
+  const emptyColors = rawInputColors.filter(
+    c => !c || typeof c !== 'object' || !c.name || !c.name.trim()
+  );
+  if (emptyColors.length > 0) {
+    throw new Error(`Color không hợp lệ: có giá trị rỗng hoặc thiếu name`);
+  }
+  const inputColors = rawInputColors
+    .map(c => c.name.toLowerCase());
+  const duplicateColors = inputColors.filter(
+    (c, i, arr) => arr.indexOf(c) !== i
+  );
+  if (duplicateColors.length > 0) {
+    throw new Error(`Color bị trùng lặp: ${[...new Set(duplicateColors)].join(', ')}`);
+  }
   // ✅ Validate size
   const invalidSizes = inputSizes.filter(s => !validSizes.includes(s));
   if (invalidSizes.length > 0) {
@@ -99,8 +97,8 @@ if (duplicateColors.length > 0) {
         typeof v.color === 'string'
           ? v.color.toLowerCase()
           : typeof v.color === 'object' && typeof v.color.name === 'string'
-          ? v.color.name.toLowerCase()
-          : '';
+            ? v.color.name.toLowerCase()
+            : '';
       return `${colorKey}-${sizeKey}`;
     })
   );
@@ -150,6 +148,7 @@ if (duplicateColors.length > 0) {
       sku: `VAR-${size || 'N'}-${color.name || 'N'}-${Date.now()}`,
       stock: 0,
       price: basePrice,
+      sale_price: null,
       image: img
     };
   });
@@ -334,4 +333,4 @@ export default {
   getVariantById,
   getVariantOptions,
   getAdminVariants
- };
+};

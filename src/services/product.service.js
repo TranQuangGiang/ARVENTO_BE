@@ -77,7 +77,7 @@ const createProduct = async (data) => {
 
     // Ép kiểu giá trước khi validate
     data.original_price = parseFloat(data.original_price);
-    data.sale_price = parseFloat(data.sale_price);
+    // data.sale_price = parseFloat(data.sale_price);
 
     // Validate bằng Joi
     const { error } = productValidate.create.validate(data, { abortEarly: false });
@@ -175,10 +175,11 @@ const updateProduct = async (id, data) => {
       }
     }
 
-    // Validate logic giá
-    if (data.sale_price && data.original_price && data.sale_price > data.original_price) {
-      throw new Error("Giá khuyến mãi không được lớn hơn giá gốc");
-    }
+    // // Validate logic giá
+    // if (data.sale_price && data.original_price && data.sale_price > data.original_price) {
+    //   throw new Error('Giá khuyến mãi không được lớn hơn giá gốc');
+    // }
+
 
     if ("updated_at" in data) {
       delete data.updated_at;
@@ -217,13 +218,19 @@ const updateProduct = async (id, data) => {
       throw error;
     }
 
-    if (data.sale_price !== undefined) {
-      const salePriceDecimal = new mongoose.Types.Decimal128(data.sale_price.toString());
 
-      await Variant.updateMany({ product_id: id }, { $set: { price: salePriceDecimal } });
+   // Cập nhật lại giá gốc cho tất cả variants nếu original_price thay đổi
+if (data.original_price !== undefined) {
+  await Variant.updateMany(
+    { product_id: id },
+    {
+      $set: {
+        price: new mongoose.Types.Decimal128(data.original_price.toString())
+      }
 
-      logger.info(`Đã đồng bộ giá sale ${data.sale_price} cho toàn bộ variants của product ${id}`);
     }
+  );
+}
 
     return updatedProduct;
   } catch (err) {

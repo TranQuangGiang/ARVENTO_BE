@@ -40,19 +40,19 @@ const productSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
-    sale_price: {
-      type: mongoose.Types.Decimal128,
-      min: 0,
-      default: 0,
-      validate: {
-        validator: function (value) {
-          const original = parseFloat(this.original_price?.toString() || "0");
-          const sale = parseFloat(value?.toString() || "0");
-          return sale <= original;
-        },
-        message: "Giá khuyến mãi không được lớn hơn giá gốc",
-      },
-    },
+    // sale_price: {
+    //   type: mongoose.Types.Decimal128,
+    //   min: 0,
+    //   default: 0,
+    //   validate: {
+    //     validator: function (value) {
+    //       const original = parseFloat(this.original_price?.toString() || "0");
+    //       const sale = parseFloat(value?.toString() || "0");
+    //       return sale <= original;
+    //     },
+    //     message: "Giá khuyến mãi không được lớn hơn giá gốc",
+    //   },
+    // },
     stock: {
       type: Number,
       required: true,
