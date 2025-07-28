@@ -9,29 +9,63 @@ const objectIdValidator = (value, helpers) => {
   return value;
 };
 
-// Schema cho màu sắc (object)
-const colorObjectSchema = Joi.object({
-  name: Joi.string().trim().max(50).required().messages({
-    "string.empty": "Tên màu sắc không được để trống",
-    "string.max": "Tên màu sắc không được vượt quá 50 ký tự",
-    "any.required": "Thiếu tên màu sắc",
-  }),
-  hex: Joi.string().trim().max(20).allow(null, "").messages({
-    "string.max": "Mã màu không được vượt quá 20 ký tự",
-  }),
-});
-
-// Variant schema
 const variantSchema = Joi.object({
-  color: colorObjectSchema.required().messages({
-    "any.required": "Thiếu thông tin màu sắc",
-    "object.base": "Màu sắc phải là object",
-  }),
+  color: Joi.object({
+    name: Joi.string().trim().max(50).required().messages({
+      "string.empty": "Tên màu sắc không được để trống",
+      "string.max": "Tên màu sắc không được vượt quá 50 ký tự",
+      "any.required": "Thiếu tên màu sắc",
+    }),
+    hex: Joi.string().trim().max(20).allow(null, "").messages({
+      "string.max": "Mã màu không được vượt quá 20 ký tự",
+    }),
+  })
+    .required()
+    .messages({
+      "any.required": "Thiếu thông tin màu sắc",
+    }),
+
   size: Joi.string().trim().max(20).required().messages({
     "string.empty": "Kích cỡ không được để trống",
     "string.max": "Kích cỡ không được vượt quá 20 ký tự",
     "any.required": "Thiếu kích cỡ",
   }),
+
+  sku: Joi.string().trim().max(100).required().messages({
+    "string.empty": "SKU không được để trống",
+    "string.max": "SKU không được vượt quá 100 ký tự",
+    "any.required": "Thiếu SKU",
+  }),
+
+  price: Joi.number().min(0).required().messages({
+    "number.base": "Giá phải là số",
+    "number.min": "Giá không được âm",
+    "any.required": "Thiếu giá sản phẩm",
+  }),
+
+  sale_price: Joi.number().min(0).allow(null).messages({
+    "number.base": "Giá khuyến mãi phải là số",
+    "number.min": "Giá khuyến mãi không được âm",
+  }),
+
+  stock: Joi.number().integer().min(0).required().messages({
+    "number.base": "Tồn kho phải là số nguyên",
+    "number.min": "Tồn kho không được âm",
+    "any.required": "Thiếu số lượng tồn kho",
+  }),
+
+  image: Joi.object({
+    url: Joi.string().uri().allow("").messages({
+      "string.uri": "Đường dẫn ảnh không hợp lệ",
+    }),
+    alt: Joi.string().max(100).allow("").messages({
+      "string.max": "Alt text không được vượt quá 100 ký tự",
+    }),
+  })
+    .required()
+    .messages({
+      "any.required": "Thiếu thông tin ảnh",
+    }),
 });
 // Schema cho thêm sản phẩm vào giỏ hàng
 export const addItemSchema = Joi.object({

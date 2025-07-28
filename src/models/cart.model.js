@@ -1,7 +1,5 @@
 import mongoose from "mongoose";
 import mongoosePaginate from "mongoose-paginate-v2";
-
-// Schema cho variant của sản phẩm trong giỏ hàng
 const CartVariantSchema = new mongoose.Schema(
   {
     color: {
@@ -34,6 +32,11 @@ const CartVariantSchema = new mongoose.Schema(
       type: mongoose.Types.Decimal128,
       required: [true, "Giá sản phẩm là bắt buộc"],
       min: [0, "Giá sản phẩm không được âm"],
+    },
+    sale_price: {
+      type: mongoose.Types.Decimal128,
+      min: [0, "Giá khuyến mãi không được âm"],
+      default: null,
     },
     stock: {
       type: Number,

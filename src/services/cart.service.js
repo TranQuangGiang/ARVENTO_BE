@@ -161,38 +161,16 @@ export const getCart = async (userId, includeSaved = true, page = 1, limit = 100
 // Validate product và variant tồn tại và có đủ stock
 const validateProductAndVariant = async (productId, variantData, requestedQuantity) => {
   try {
-    // Validate inputs
-    if (!productId) {
-      throw new Error("Product ID is required");
-    }
+    if (!productId) throw new Error("Product ID is required");
+    if (!variantData) throw new Error("Thiếu thông tin biến thể sản phẩm (selected_variant)");
+    if (!variantData.color || !variantData.color.name) throw new Error("Thiếu thông tin màu sắc trong selected_variant");
+    if (!variantData.size) throw new Error("Thiếu thông tin kích cỡ trong selected_variant");
+    if (requestedQuantity <= 0) throw new Error("Số lượng phải lớn hơn 0");
 
-    if (!variantData) {
-      throw new Error("Thiếu thông tin biến thể sản phẩm (selected_variant)");
-    }
-
-    if (!variantData.color || !variantData.color.name) {
-      throw new Error("Thiếu thông tin màu sắc trong selected_variant");
-    }
-
-    if (!variantData.size) {
-      throw new Error("Thiếu thông tin kích cỡ trong selected_variant");
-    }
-
-    if (requestedQuantity <= 0) {
-      throw new Error("Số lượng phải lớn hơn 0");
-    }
-
-    // Check if product exists and is active
     const product = await Product.findById(productId);
-    if (!product) {
-      throw new Error("Sản phẩm không tồn tại");
-    }
+    if (!product) throw new Error("Sản phẩm không tồn tại");
+    if (!product.isActive) throw new Error("Sản phẩm hiện không khả dụng");
 
-    if (!product.isActive) {
-      throw new Error("Sản phẩm hiện không khả dụng");
-    }
-
-    // Find exact variant in database
     const dbVariant = await Variant.findOne({
       product_id: productId,
       "color.name": variantData.color.name,
@@ -207,14 +185,15 @@ const validateProductAndVariant = async (productId, variantData, requestedQuanti
       throw new Error(`Chỉ còn ${dbVariant.stock} sản phẩm trong kho cho variant ${variantData.color.name} - ${variantData.size}`);
     }
 
-    // Use variant price if available, otherwise use product price
+    // Ưu tiên sale_price nếu hợp lệ (> 0), nếu không thì dùng price
     let currentPrice = 0;
-    if (dbVariant.price && parseFloat(dbVariant.price.toString()) > 0) {
-      currentPrice = parseFloat(dbVariant.price.toString());
-    } else {
-      const salePrice = parseFloat(product.sale_price?.toString() || "0");
-      const originalPrice = parseFloat(product.original_price?.toString() || "0");
-      currentPrice = salePrice > 0 ? salePrice : originalPrice;
+    const salePrice = parseFloat(dbVariant.sale_price?.toString() || "0");
+    const price = parseFloat(dbVariant.price?.toString() || "0");
+
+    if (salePrice > 0) {
+      currentPrice = salePrice;
+    } else if (price > 0) {
+      currentPrice = price;
     }
 
     if (currentPrice <= 0) {
@@ -236,7 +215,6 @@ const validateProductAndVariant = async (productId, variantData, requestedQuanti
 
 // Thêm sản phẩm vào giỏ hàng
 const MAX_QUANTITY_PER_ITEM = 10;
-
 export const addItem = async (userId, productId, variant, quantity) => {
   try {
     if (!userId || !productId || !variant || !quantity) {
@@ -245,7 +223,6 @@ export const addItem = async (userId, productId, variant, quantity) => {
 
     logger.info(`[CART] Adding item to cart - User: ${userId}, Product: ${productId}, Quantity: ${quantity}`);
 
-    // Lấy Variant từ DB và giá
     const { variant: dbVariant, currentPrice } = await validateProductAndVariant(productId, variant, quantity);
 
     const cart = await getOrCreateCart(userId);
@@ -276,6 +253,7 @@ export const addItem = async (userId, productId, variant, quantity) => {
         size: dbVariant.size,
         sku: dbVariant.sku,
         price: dbVariant.price,
+        sale_price: dbVariant.sale_price,
         stock: dbVariant.stock,
         image: dbVariant.image,
       };
@@ -293,6 +271,7 @@ export const addItem = async (userId, productId, variant, quantity) => {
           size: dbVariant.size,
           sku: dbVariant.sku,
           price: dbVariant.price,
+          sale_price: dbVariant.sale_price,
           stock: dbVariant.stock,
           image: dbVariant.image,
         },
