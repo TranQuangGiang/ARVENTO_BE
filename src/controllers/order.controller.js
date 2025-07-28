@@ -62,7 +62,8 @@ const createOrder = async (req, res) => {
       items: order.items.map((i) => ({
         name: i.product.name,
         quantity: i.quantity,
-        price: i.total,
+        unit_price: parseFloat(i.unit_price?.toString?.() || "0"),
+        total_price: parseFloat(i.total_price?.toString?.() || "0"),
       })),
       total: order.total,
       paymentMethod: paymentMethodLabels[order.payment_method] || "Chưa xác định",
