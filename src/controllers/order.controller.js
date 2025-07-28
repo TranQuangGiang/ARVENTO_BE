@@ -47,7 +47,12 @@ const createOrder = async (req, res) => {
 
     const user = req.user._id;
     const order = await orderService.createOrder({ user, ...value });
-
+    const paymentMethodLabels = {
+      cod: "Thanh toán khi nhận hàng",
+      momo: "Thanh toán qua MoMo",
+      vnpay: "Thanh toán qua VNPAY",
+      bank_transfer: "Chuyển khoản ngân hàng",
+    };
     const html = getOrderConfirmationEmailTemplate({
       fullName: req.user.name,
       phone: order.shipping_address?.phone || "",
@@ -60,7 +65,7 @@ const createOrder = async (req, res) => {
         price: i.total,
       })),
       total: order.total,
-      paymentMethod: order.paymentMethod || "Chưa xác định",
+      paymentMethod: paymentMethodLabels[order.payment_method] || "Chưa xác định",
     });
 
     await sendEmail(req.user.email, "Xác nhận đơn hàng", html);
