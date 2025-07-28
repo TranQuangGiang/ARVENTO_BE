@@ -292,6 +292,10 @@ const createOrder = async (orderData) => {
 
     const order = await Order.create(orderPayload);
 
+    await order.populate("items.product");
+
+    await order.populate("items.variant");
+
     logger.info(`[ORDER] Created order: ${order._id}`);
     return order;
   } catch (error) {

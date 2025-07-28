@@ -1,4 +1,8 @@
 import nodemailer from "nodemailer";
+const formatDate = (val) => {
+  const date = val ? new Date(val) : new Date(); // fallback nếu val undefined
+  return isNaN(date.getTime()) ? new Date().toLocaleString("vi-VN") : date.toLocaleString("vi-VN");
+};
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -50,7 +54,7 @@ export const getOrderConfirmationEmailTemplate = ({ fullName, phone, address, or
         </div>
         <div style="padding: 24px;">
           <p>Chào <strong>${fullName}</strong>,</p>
-          <p>Chúng tôi đã nhận được đơn hàng <strong>#${orderId}</strong> của bạn vào lúc <strong>${new Date(createdAt).toLocaleString()}</strong>.</p>
+          <p>Chúng tôi đã nhận được đơn hàng <strong>#${orderId}</strong> của bạn vào lúc <strong>${formatDate(createdAt)}</strong>.</p>
 
           <h3>📦 Thông tin người nhận</h3>
           <p><strong>Họ tên:</strong> ${fullName}</p>
