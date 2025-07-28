@@ -1,7 +1,6 @@
 import Order from "../models/order.model.js";
-import { couponModel, Product } from "../models/index.js";
+import { addressModel, couponModel, Product } from "../models/index.js";
 import Variant from "../models/variant.model.js";
-import Address from "../models/address.model.js";
 import cartService from "./cart.service.js";
 import logger from "../config/logger.config.js";
 import ExcelJS from "exceljs";
@@ -145,38 +144,37 @@ const createOrder = async (orderData) => {
     // Lấy snapshot địa chỉ giao hàng
     let shippingAddressSnapshot = null;
     if (shipping_address) {
-      const shippingAddr = await Address.findById(shipping_address);
+      const shippingAddr = await addressModel.findById(shipping_address);
       if (!shippingAddr || shippingAddr.user.toString() !== user.toString()) {
         throw new Error("Địa chỉ giao hàng không hợp lệ");
       }
 
       shippingAddressSnapshot = {
-        name: shippingAddr.name,
-        phone: shippingAddr.phone,
-        detail: shippingAddr.detail,
-        ward: shippingAddr.ward,
-        district: shippingAddr.district,
-        province: shippingAddr.province,
-        isDefault: shippingAddr.isDefault,
+        phone: shippingAddr.phone || "",
+        detail: shippingAddr.detail || "",
+        ward: shippingAddr.ward || "",
+        district: shippingAddr.district || "",
+        province: shippingAddr.province || "",
+        isDefault: shippingAddr.isDefault || false,
       };
     }
 
     // Lấy snapshot địa chỉ thanh toán
     let billingAddressSnapshot = null;
     if (billing_address) {
-      const billingAddr = await Address.findById(billing_address);
+      const billingAddr = await addressModel.findById(billing_address);
       if (!billingAddr || billingAddr.user.toString() !== user.toString()) {
         throw new Error("Địa chỉ thanh toán không hợp lệ");
       }
 
       billingAddressSnapshot = {
-        name: billingAddr.name,
-        phone: billingAddr.phone,
-        detail: billingAddr.detail,
-        ward: billingAddr.ward,
-        district: billingAddr.district,
-        province: billingAddr.province,
-        isDefault: billingAddr.isDefault,
+        name: billingAddr.name ?? "",
+        phone: billingAddr.phone ?? "",
+        detail: billingAddr.detail ?? "",
+        ward: billingAddr.ward ?? "",
+        district: billingAddr.district ?? "",
+        province: billingAddr.province ?? "",
+        isDefault: billingAddr.isDefault ?? "",
       };
     }
 
@@ -320,18 +318,18 @@ const createOrderFromCart = async (userId, orderData) => {
     // ----- Xử lý snapshot địa chỉ giao hàng -----
     let shippingAddressSnapshot = null;
     if (shipping_address) {
-      const shippingAddr = await Address.findById(shipping_address);
+      const shippingAddr = await addressModel.findById(shipping_address);
       if (!shippingAddr || shippingAddr.user.toString() !== userId.toString()) {
         throw new Error("Địa chỉ giao hàng không hợp lệ");
       }
 
       shippingAddressSnapshot = {
-        name: shippingAddr.name,
-        phone: shippingAddr.phone,
-        detail: shippingAddr.detail,
-        ward: shippingAddr.ward,
-        district: shippingAddr.district,
-        province: shippingAddr.province,
+        name: shippingAddr.name ?? "",
+        phone: shippingAddr.phone ?? "",
+        detail: shippingAddr.detail ?? "",
+        ward: shippingAddr.ward ?? "",
+        district: shippingAddr.district ?? "",
+        province: shippingAddr.province ?? "",
         isDefault: shippingAddr.isDefault,
       };
     }
@@ -339,18 +337,18 @@ const createOrderFromCart = async (userId, orderData) => {
     // ----- Xử lý snapshot địa chỉ thanh toán -----
     let billingAddressSnapshot = null;
     if (billing_address) {
-      const billingAddr = await Address.findById(billing_address);
+      const billingAddr = await addressModel.findById(billing_address);
       if (!billingAddr || billingAddr.user.toString() !== userId.toString()) {
         throw new Error("Địa chỉ thanh toán không hợp lệ");
       }
 
       billingAddressSnapshot = {
-        name: billingAddr.name,
-        phone: billingAddr.phone,
-        detail: billingAddr.detail,
-        ward: billingAddr.ward,
-        district: billingAddr.district,
-        province: billingAddr.province,
+        name: billingAddr.name ?? "",
+        phone: billingAddr.phone ?? "",
+        detail: billingAddr.detail ?? "",
+        ward: billingAddr.ward ?? "",
+        district: billingAddr.district ?? "",
+        province: billingAddr.province ?? "",
         isDefault: billingAddr.isDefault,
       };
     }
