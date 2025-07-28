@@ -50,8 +50,8 @@ const createOrder = async (req, res) => {
 
     const html = getOrderConfirmationEmailTemplate({
       fullName: req.user.name,
-      phone: order.receiver.phone,
-      address: order.receiver.address,
+      phone: order.shipping_address?.phone || "",
+      address: order.shipping_address?.detail ? `${order.shipping_address.detail}, ${order.shipping_address.ward}, ${order.shipping_address.district}, ${order.shipping_address.province}` : "",
       orderId: order._id,
       createdAt: order.createdAt,
       items: order.items.map((i) => ({
