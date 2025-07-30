@@ -394,6 +394,14 @@ const getAvailableCoupons = async (userId, page = 1, limit = 20) => {
 
   return result;
 };
+const countCoupons = async (filters = {}) => {
+  try {
+    return await Coupon.countDocuments(filters);
+  } catch (error) {
+    logger.error(`Failed to count coupons: ${error.message}`, { stack: error.stack });
+    throw error;
+  }
+};
 export default {
   createCoupon,
   getAllCoupons,
@@ -406,4 +414,5 @@ export default {
   getCouponUsageHistory,
   toggleCouponStatus,
   getAvailableCoupons,
+  countCoupons,
 };

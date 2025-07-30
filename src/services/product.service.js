@@ -180,7 +180,6 @@ const updateProduct = async (id, data) => {
     //   throw new Error('Giá khuyến mãi không được lớn hơn giá gốc');
     // }
 
-
     if ("updated_at" in data) {
       delete data.updated_at;
     }
@@ -218,19 +217,17 @@ const updateProduct = async (id, data) => {
       throw error;
     }
 
-
-   // Cập nhật lại giá gốc cho tất cả variants nếu original_price thay đổi
-if (data.original_price !== undefined) {
-  await Variant.updateMany(
-    { product_id: id },
-    {
-      $set: {
-        price: new mongoose.Types.Decimal128(data.original_price.toString())
-      }
-
+    // Cập nhật lại giá gốc cho tất cả variants nếu original_price thay đổi
+    if (data.original_price !== undefined) {
+      await Variant.updateMany(
+        { product_id: id },
+        {
+          $set: {
+            price: new mongoose.Types.Decimal128(data.original_price.toString()),
+          },
+        }
+      );
     }
-  );
-}
 
     return updatedProduct;
   } catch (err) {
@@ -500,6 +497,14 @@ const importProducts = async (file) => {
 
   return { imported: results, errors };
 };
+const countProducts = async (filters = {}) => {
+  try {
+    return await Product.countDocuments(filters);
+  } catch (error) {
+    logger.error(`Failed to count products: ${error.message}`, { stack: error.stack });
+    throw error;
+  }
+};
 
 export default {
   getAllProducts,
@@ -513,4 +518,5 @@ export default {
   exportProducts,
   importProducts,
   getRelatedProducts,
+  countProducts,
 };
