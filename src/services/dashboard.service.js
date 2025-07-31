@@ -6,16 +6,26 @@ import dayjs from "dayjs";
 import userModel from "../models/user.model.js";
 import Product from "../models/product.model.js";
 import orderModel from "../models/order.model.js";
-
 const getRevenueByDateFullFill = async ({ from, to, groupBy = "day" }) => {
   const match = { status: "completed" };
-  if (from || to) match.createdAt = {};
-  if (from) match.createdAt.$gte = new Date(from);
-  if (to) match.createdAt.$lte = new Date(to);
 
-  const dateFormat = groupBy === "month" ? { $dateToString: { format: "%Y-%m", date: "$createdAt" } } : { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } };
+  if (from || to) match.created_at = {};
 
-  const rawData = await orderModel.aggregate([{ $match: match }, { $group: { _id: dateFormat, revenue: { $sum: "$total" } } }, { $sort: { _id: 1 } }]);
+  if (from) match.created_at.$gte = new Date(from);
+  if (to) match.created_at.$lte = new Date(to);
+
+  const dateFormat = groupBy === "month" ? { $dateToString: { format: "%Y-%m", date: "$created_at" } } : { $dateToString: { format: "%Y-%m-%d", date: "$created_at" } };
+
+  const rawData = await orderModel.aggregate([
+    { $match: match },
+    {
+      $group: {
+        _id: dateFormat,
+        revenue: { $sum: { $toDouble: "$total" } },
+      },
+    },
+    { $sort: { _id: 1 } },
+  ]);
 
   const start = dayjs(from);
   const end = dayjs(to);
