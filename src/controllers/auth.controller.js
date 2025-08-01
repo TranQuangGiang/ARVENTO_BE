@@ -19,7 +19,7 @@ const register = async (req, res) => {
       return baseResponse.badRequestResponse(res, null, error.details[0].message);
     }
 
-    const { accessToken, refreshToken, user } = await authService.register(req.body);
+    const result = await authService.register(req.body);
 
     res.cookie(tokenConstant.REFRESH, refreshToken, {
       httpOnly: true,
@@ -28,16 +28,7 @@ const register = async (req, res) => {
       maxAge: ms(expiresInRefreshToken) / 1000,
     });
 
-    logger.info(`User registered: ${user.id} - ${user.email}`);
-    return baseResponse.createdResponse(
-      res,
-      {
-        user,
-        access_token: accessToken,
-        expires_in: ms(expiresInAccessToken) / 1000,
-      },
-      "Registration successful"
-    );
+    return baseResponse.createdResponse(res, result);
   } catch (err) {
     logger.error(`Register failed: ${err.message}`);
     return baseResponse.badRequestResponse(res, null, err.message);
