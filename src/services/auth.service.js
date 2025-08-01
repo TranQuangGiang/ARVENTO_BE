@@ -33,7 +33,9 @@ const register = async (data) => {
     accessTokenExpiresIn: "5m",
   });
 
-  await sendEmail(user.email, "Verify Email", `Click to verify your email: https://verify-email?token=${verifyToken}`);
+  const html = getVerifyEmailTemplate({ fullName: user.name, token: verifyToken });
+  await sendEmail(user.email, "Xác thực email", html);
+  // await sendEmail(user.email, "Verify Email", `Click to verify your email: https://verify-email?token=${verifyToken}`);s
 
   return {
     message: "Registration successful. Please check your email to verify.",
