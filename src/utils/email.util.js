@@ -174,10 +174,10 @@ export const getVerifyEmailTemplate = ({ fullName = "bạn", token }) => {
           <p>Để hoàn tất quá trình đăng ký, vui lòng xác minh địa chỉ email của bạn bằng cách nhấn vào nút bên dưới:</p>
 
           <div style="text-align: center; margin: 32px 0;">
-            <a href="https://your-frontend.com/verify-email?token=${token}"
+            <a href="http://localhost:5173/EmailVerificationSuccess?token=${token}"
               style="display: inline-block; background-color: #007bff; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-size: 16px;">
               Xác minh email ngay
-            </a>
+            </a>s
           </div>
 
           <p>Nếu bạn không đăng ký tài khoản, vui lòng bỏ qua email này.</p>
