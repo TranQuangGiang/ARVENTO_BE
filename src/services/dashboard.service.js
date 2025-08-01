@@ -114,12 +114,12 @@ const getTopDiscountUsed = async () => {
   const result = await orderModel.aggregate([
     {
       $match: {
-        discount_code: { $exists: true, $ne: null },
+        "applied_coupon.code": { $exists: true, $ne: null },
       },
     },
     {
       $group: {
-        _id: "$discount_code",
+        _id: "$applied_coupon.code",
         count: { $sum: 1 },
       },
     },

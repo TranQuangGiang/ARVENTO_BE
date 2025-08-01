@@ -73,7 +73,7 @@ const dashboardController = {
   },
   async getLowStockProducts(req, res) {
     try {
-      const data = await dashboardService.getLowStockProducts();
+      const data = await dashboardService.getStockWarning();
       responseUtil.successResponse(res, data, "Lấy sản phẩm sắp hết hàng thành công");
     } catch (err) {
       responseUtil.errorResponse(res, null, "Lỗi server: " + err.message);

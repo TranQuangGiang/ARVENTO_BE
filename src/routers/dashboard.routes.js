@@ -234,11 +234,11 @@ router.get("/users-new", authMiddleware.authenticateToken, authMiddleware.author
  *                         type: integer
  *                         example: 128
  */
-router.get("/top-discount-used", authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), dashboardController.getTopDiscountUsed);
+router.get("/coupons/top-discount-used", authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), dashboardController.getTopDiscountUsed);
 
 /**
  * @swagger
- * /dashboard/coupons/stock-warning:
+ * /dashboard/stock-warning:
  *   get:
  *     summary: Danh sách sản phẩm sắp hết hàng
  *     tags: [Dashboard]
