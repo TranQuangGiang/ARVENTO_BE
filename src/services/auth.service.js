@@ -1,7 +1,7 @@
 import bcrypt from "bcrypt";
 import { userModel } from "../models/index.js";
 import tokenService from "./token.service.js";
-import { sendEmail } from "../utils/email.util.js";
+import { getVerifyEmailTemplate, sendEmail } from "../utils/email.util.js";
 import tokenConstant from "../constants/token.enum.js";
 
 const register = async (data) => {
@@ -109,6 +109,29 @@ const refreshToken = async (oldRefreshToken) => {
     refreshToken: tokens.refreshToken,
   };
 };
+const resendVerifyEmail = async (email) => {
+  if (!email) {
+    throw new Error("Email is required");
+  }
+
+  const user = await userModel.findOne({ email });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  if (user.verified) {
+    throw new Error("User already verified");
+  }
+
+  const { accessToken: verifyToken } = tokenService.generateTokens(user, {
+    withRefreshToken: false,
+    accessTokenExpiresIn: "5m",
+  });
+
+  const html = getVerifyEmailTemplate({ fullName: user.name, token: verifyToken });
+  await sendEmail(user.email, "Xác thực email", html);
+};
 
 export default {
   register,
@@ -118,4 +141,5 @@ export default {
   forgotPassword,
   resetPassword,
   refreshToken,
+  resendVerifyEmail,
 };

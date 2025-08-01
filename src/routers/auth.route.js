@@ -31,7 +31,32 @@ const router = express.Router();
  *         description: Dữ liệu đầu vào không hợp lệ hoặc lỗi khác
  */
 router.post("/register", authController.register);
-
+/**
+ * @swagger
+ * /auth/resend-verify-email:
+ *   post:
+ *     tags: [Authentication]
+ *     summary: Gửi lại email xác thực cho người dùng chưa xác minh
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: user@example.com
+ *     responses:
+ *       200:
+ *         description: Gửi lại email xác thực thành công
+ *       400:
+ *         description: Email không tồn tại, đã xác thực, hoặc lỗi khác
+ */
+router.post("/resend-verify-email", authController.resendVerifyEmail);
 
 /**
  * @swagger

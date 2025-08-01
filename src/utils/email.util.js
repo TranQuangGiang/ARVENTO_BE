@@ -160,3 +160,34 @@ export const getOrderStatusChangedEmailTemplate = ({ fullName, orderId, newStatu
     </div>
   `;
 };
+
+export const getVerifyEmailTemplate = ({ fullName = "bạn", token }) => {
+  return `
+    <div style="font-family: Arial, sans-serif; background-color: #f4f6f8; padding: 40px;">
+      <div style="max-width: 600px; margin: auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);">
+        <div style="background-color: #007bff; color: #fff; padding: 24px 32px;">
+          <h2 style="margin: 0;">🔐 Xác thực địa chỉ email</h2>
+        </div>
+        <div style="padding: 32px;">
+          <p>Xin chào <strong>${fullName}</strong>,</p>
+          <p>Chúng tôi rất vui vì bạn đã đăng ký tài khoản tại hệ thống của chúng tôi.</p>
+          <p>Để hoàn tất quá trình đăng ký, vui lòng xác minh địa chỉ email của bạn bằng cách nhấn vào nút bên dưới:</p>
+
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="https://your-frontend.com/verify-email?token=${token}"
+              style="display: inline-block; background-color: #007bff; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-size: 16px;">
+              Xác minh email ngay
+            </a>
+          </div>
+
+          <p>Nếu bạn không đăng ký tài khoản, vui lòng bỏ qua email này.</p>
+
+          <p style="font-size: 13px; color: #777;">Liên kết xác minh sẽ hết hạn sau 5 phút vì lý do bảo mật.</p>
+        </div>
+        <div style="background-color: #f1f1f1; text-align: center; padding: 16px; font-size: 12px; color: #888;">
+          Đây là email tự động, vui lòng không trả lời lại email này.
+        </div>
+      </div>
+    </div>
+  `;
+};

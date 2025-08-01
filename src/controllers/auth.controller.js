@@ -5,7 +5,7 @@ import { baseResponse } from "../utils/index.js";
 import { logger } from "../config/index.js";
 import { authValidate } from "../validations/index.js";
 import { envUtils } from "../utils/index.js";
-import {tokenConstant} from "../constants/index.js";
+import { tokenConstant } from "../constants/index.js";
 
 const expiresInAccessToken = envUtils.getEnv("ACCESS_TOKEN_EXPIRES_IN");
 const expiresInRefreshToken = envUtils.getEnv("REFRESH_TOKEN_EXPIRES_IN");
@@ -139,6 +139,19 @@ const verifyEmail = async (req, res) => {
     return baseResponse.badRequestResponse(res, null, err.message);
   }
 };
+const resendVerifyEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    await authService.resendVerifyEmail(email);
+
+    logger.info(`Resent verification email to ${email}`);
+    return baseResponse.successResponse(res, null, "Verification email resent.");
+  } catch (err) {
+    logger.error(`Resend verify email failed: ${err.message}`);
+    return baseResponse.badRequestResponse(res, null, err.message);
+  }
+};
 
 const forgotPassword = async (req, res) => {
   try {
@@ -181,4 +194,5 @@ export default {
   verifyEmail,
   forgotPassword,
   resetPassword,
+  resendVerifyEmail,
 };
