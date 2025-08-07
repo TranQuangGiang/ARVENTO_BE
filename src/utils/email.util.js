@@ -16,14 +16,16 @@ const transporter = nodemailer.createTransport({
  * @param {string} to
  * @param {string} subject
  * @param {string} html
+* @param {Array<{ filename: string, path: string }>} [attachments=[]] - danh sách tệp đính kèm
  */
-export const sendEmail = async (to, subject, html) => {
+export const sendEmail = async (to, subject, html, attachments = []) => {
   try {
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to,
       subject,
       html,
+      attachments,
     };
 
     const info = await transporter.sendMail(mailOptions);
@@ -187,6 +189,61 @@ export const getVerifyEmailTemplate = ({ fullName = "bạn", token }) => {
         <div style="background-color: #f1f1f1; text-align: center; padding: 16px; font-size: 12px; color: #888;">
           Đây là email tự động, vui lòng không trả lời lại email này.
         </div>
+      </div>
+    </div>
+  `;
+};
+export const getConfirmReturnEmailTemplate = ({ fullName, orderId, confirmedAt, note, order }) => {
+  const itemRows = order.items
+    .map((item) => {
+      const name = item.product?.name || "Sản phẩm không xác định";
+      const quantity = item.quantity;
+      const price = item.unit_price;
+      const total = item.total_price;
+      return `
+        <tr>
+          <td style="padding: 8px; border: 1px solid #ccc;">${name}</td>
+          <td style="padding: 8px; border: 1px solid #ccc; text-align: center;">${quantity}</td>
+          <td style="padding: 8px; border: 1px solid #ccc; text-align: right;">${price.toLocaleString("vi-VN")}₫</td>
+          <td style="padding: 8px; border: 1px solid #ccc; text-align: right;">${total.toLocaleString("vi-VN")}₫</td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  return `
+    <div style="font-family: Arial, sans-serif; background-color: #f4f6f8; padding: 24px;">
+      <div style="max-width: 700px; margin: auto; background-color: #ffffff; padding: 24px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.05);">
+        <h2 style="color: #28a745;">✅ Xác nhận hoàn hàng thành công</h2>
+        <p>Xin chào <strong>${fullName}</strong>,</p>
+        <p>Chúng tôi đã <strong>xác nhận yêu cầu trả hàng</strong> của bạn cho đơn hàng <strong>#${orderId}</strong>.</p>
+
+        <p><strong>Thời gian xác nhận:</strong> ${new Date(confirmedAt).toLocaleString("vi-VN")}</p>
+        ${note ? `<p><strong>Ghi chú:</strong> ${note}</p>` : ''}
+
+        <h3 style="margin-top: 24px;">🧾 Chi tiết đơn hàng</h3>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 12px;">
+          <thead>
+            <tr>
+              <th style="border: 1px solid #ccc; padding: 8px;">Sản phẩm</th>
+              <th style="border: 1px solid #ccc; padding: 8px;">SL</th>
+              <th style="border: 1px solid #ccc; padding: 8px;">Đơn giá</th>
+              <th style="border: 1px solid #ccc; padding: 8px;">Thành tiền</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemRows}
+          </tbody>
+        </table>
+
+        <p style="margin-top: 16px; text-align: right;"><strong>Tổng thanh toán:</strong> ${order.total.toLocaleString("vi-VN")}₫</p>
+
+        <p style="margin-top: 24px;">📎 Ảnh bằng chứng hoàn hàng đã được đính kèm trong email này.</p>
+
+        <p style="margin-top: 24px;">Cảm ơn bạn đã thực hiện hoàn hàng đúng quy trình. Nếu có bất kỳ thắc mắc nào, xin vui lòng liên hệ bộ phận hỗ trợ khách hàng.</p>
+
+        <hr style="margin: 24px 0;" />
+        <p style="font-size: 13px; color: #999;">Đây là email tự động. Vui lòng không trả lời email này.</p>
       </div>
     </div>
   `;

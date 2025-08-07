@@ -6,8 +6,9 @@ import logger from "../config/logger.config.js";
 import ExcelJS from "exceljs";
 import mongoose from "mongoose";
 import Roles from "../constants/role.enum.js";
-import { getCancelConfirmationEmailTemplate, getOrderStatusChangedEmailTemplate, getReturnApprovedEmailTemplate, getReturnRequestEmailTemplate, sendEmail } from "../utils/email.util.js";
-
+import { getCancelConfirmationEmailTemplate, getConfirmReturnEmailTemplate, getOrderStatusChangedEmailTemplate, getReturnApprovedEmailTemplate, getReturnRequestEmailTemplate, sendEmail } from "../utils/email.util.js";
+import fs from 'fs';
+import path from 'path';
 // Validate và kiểm tra tồn kho cho variant
 const validateOrderItem = async (item) => {
   try {
@@ -766,6 +767,10 @@ const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isRet
 
   if (order.user?.email) {
     try {
+      if (userRole === Roles.ADMIN && newStatus === "returned") {
+        return order;
+      }
+
       let html, subject;
 
       if (userRole === Roles.ADMIN && currentStatus !== "returning" && newStatus === "returning") {
@@ -905,8 +910,8 @@ const exportOrders = async (filters = {}) => {
             `${i.product?.name || i.product?.toString()} x${i.quantity}` +
             (i.variant && Object.keys(i.variant).length > 0
               ? ` (${Object.entries(i.variant)
-                  .map(([k, v]) => `${k}:${v}`)
-                  .join(", ")})`
+                .map(([k, v]) => `${k}:${v}`)
+                .join(", ")})`
               : "")
         )
         .join("; "),
@@ -920,6 +925,39 @@ const exportOrders = async (filters = {}) => {
     filename: `orders_${Date.now()}.xlsx`,
     mimetype: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   };
+};
+const confirmReturnService = async (id, imagePath) => {
+  const order = await Order.findById(id)
+    .populate('user')
+    .populate('items.product');
+  if (!order) throw new Error('Đơn hàng không tồn tại.');
+
+  order.status = 'returned';
+  await order.save();
+
+  const emailHtml = getConfirmReturnEmailTemplate({
+    fullName: order.user?.fullName || 'Khách hàng',
+    orderId: order._id,
+    confirmedAt: new Date(),
+    note: 'Đơn hàng đã được xác nhận hoàn hàng từ hệ thống.',
+    order,
+  });
+
+  const fileName = path.basename(imagePath);
+
+  await sendEmail(
+    order.user_email,
+    `Xác nhận hoàn hàng đơn #${order._id}`,
+    emailHtml,
+    [
+      {
+        filename: fileName,
+        path: imagePath,
+      },
+    ]
+  );
+
+  fs.unlinkSync(imagePath);
 };
 const countOrders = async () => Order.countDocuments();
 const countNewOrders = async (from) => Order.countDocuments({ createdAt: { $gte: new Date(from) } });
@@ -955,4 +993,5 @@ export default {
   // Utility functions
   validateOrderItem,
   checkAndUpdateStock,
+  confirmReturnService,
 };

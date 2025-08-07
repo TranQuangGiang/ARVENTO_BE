@@ -1,10 +1,11 @@
 import express from "express";
+import multer from 'multer';
 import orderController from "../controllers/order.controller.js";
 import { authMiddleware } from "../middlewares/index.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import Roles from "../constants/role.enum.js";
 import { createOrderSchema, createOrderFromCartSchema, adminUpdateOrderStatusSchema, getOrdersQuerySchema } from "../validations/order.validation.js";
-
+const upload = multer({ dest: 'uploads/returns/' });
 const router = express.Router();
 
 /**
@@ -778,6 +779,46 @@ router.patch("/:id/request-return", authMiddleware.authenticateToken, orderContr
  *       404: { description: Không tìm thấy đơn hàng }
  */
 router.get("/:id/timeline", authMiddleware.authenticateToken, orderController.getOrderTimeline);
+
+/**
+ * @swagger
+ * /orders/{id}/confirm-return:
+ *   post:
+ *     summary: Xác nhận hoàn hàng và gửi ảnh bằng chứng
+ *     tags: [Order]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id  # ✅ đúng với route `/:id/confirm-return`
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID đơn hàng
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               images:  # ✅ đúng với field bạn upload `upload.array('images', 5)`
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *     responses:
+ *       200:
+ *         description: Xác nhận hoàn hàng thành công
+ *       400:
+ *         description: Thiếu ảnh
+ *       404:
+ *         description: Đơn hàng không tồn tại
+ *       500:
+ *         description: Lỗi server
+ */
+
+router.post('/:id/confirm-return', authMiddleware.authorizeRoles(Roles.ADMIN), upload.array('images', 5), orderController.confirmReturnController);
 
 /**
  * @swagger

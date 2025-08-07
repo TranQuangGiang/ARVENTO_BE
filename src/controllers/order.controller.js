@@ -340,6 +340,22 @@ const exportOrders = async (req, res) => {
     return baseResponse.errorResponse(res, null, err.message);
   }
 };
+const confirmReturnController = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const files = req.files;
+    if (!files || files.length === 0)
+      return res.status(400).json({ message: 'Vui lòng upload ít nhất 1 ảnh xác nhận.' });
+
+    await orderService.confirmReturnService(id, files.map(f => f.path));
+
+
+    res.status(200).json({ message: 'Xác nhận hoàn hàng thành công.' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Lỗi server.' });
+  }
+};
 export default {
   // Core order functions
   createOrder,
@@ -359,4 +375,5 @@ export default {
   getRecentOrders,
   getRevenueByDate,
   exportOrders,
+  confirmReturnController,
 };
