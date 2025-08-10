@@ -6,7 +6,7 @@ import logger from "../config/logger.config.js";
 import ExcelJS from "exceljs";
 import mongoose from "mongoose";
 import Roles from "../constants/role.enum.js";
-import { getCancelConfirmationEmailTemplate, getConfirmReturnEmailTemplate, getOrderStatusChangedEmailTemplate, getReturnApprovedEmailTemplate, getReturnRequestEmailTemplate, sendEmail } from "../utils/email.util.js";
+import { getCancelConfirmationEmailTemplate, getConfirmReturnEmailTemplate, getOrderStatusChangedEmailTemplate, getRefundRequestEmailTemplate, getReturnApprovedEmailTemplate, getReturnRequestEmailTemplate, sendEmail } from "../utils/email.util.js";
 import fs from 'fs';
 import path from 'path';
 // Validate và kiểm tra tồn kho cho variant
@@ -772,6 +772,19 @@ const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isRet
       }
 
       let html, subject;
+      if (
+        userRole === Roles.ADMIN &&
+        newStatus === "returned" &&
+        order.payment_status === "completed"
+      ) {
+        html = getRefundRequestEmailTemplate({
+          fullName: order.user.fullName || "Khách hàng",
+          orderId: order._id,
+        });
+        subject = `💰 Hoàn tiền cho đơn hàng #${order._id}`;
+        await sendEmail(order.user.email, subject, html);
+        return order;
+      }
 
       if (userRole === Roles.ADMIN && currentStatus !== "returning" && newStatus === "returning") {
         html = getReturnApprovedEmailTemplate({
@@ -959,6 +972,7 @@ const confirmReturnService = async (id, imagePath) => {
 
   fs.unlinkSync(imagePath);
 };
+
 const countOrders = async () => Order.countDocuments();
 const countNewOrders = async (from) => Order.countDocuments({ createdAt: { $gte: new Date(from) } });
 

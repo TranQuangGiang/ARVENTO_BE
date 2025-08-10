@@ -248,3 +248,20 @@ export const getConfirmReturnEmailTemplate = ({ fullName, orderId, confirmedAt, 
     </div>
   `;
 };
+export function getRefundRequestEmailTemplate({ fullName, orderId }) {
+  return `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+      <h2 style="color: #4CAF50;">💰 Hoàn tiền đơn hàng</h2>
+      <p>Xin chào <strong>${fullName || "Khách hàng"}</strong>,</p>
+      <p>Chúng tôi xin thông báo <strong>đơn hàng #${orderId}</strong> của bạn đã được xác nhận hoàn hàng thành công.</p>
+      <p>Vui lòng liên hệ với chúng tôi để thực hiện hoàn tiền:</p>
+      <ul style="padding-left: 20px; margin: 10px 0;">
+        <li>📧 Email: <a href="mailto:support@yourshop.com" style="color: #4CAF50;">support@yourshop.com</a></li>
+        <li>📞 Hotline: <a href="tel:0123456789" style="color: #4CAF50;">0123 456 789</a></li>
+      </ul>
+      <p>Chúng tôi sẽ xử lý hoàn tiền trong thời gian sớm nhất. Xin cảm ơn bạn đã tin tưởng mua sắm tại cửa hàng!</p>
+      <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+      <p style="font-size: 12px; color: #888;">Đây là email tự động, vui lòng không trả lời trực tiếp.</p>
+    </div>
+  `;
+}
