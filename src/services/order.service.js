@@ -939,38 +939,72 @@ const exportOrders = async (filters = {}) => {
     mimetype: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   };
 };
-const confirmReturnService = async (id, imagePath) => {
-  const order = await Order.findById(id)
-    .populate('user')
-    .populate('items.product');
-  if (!order) throw new Error('Đơn hàng không tồn tại.');
+const confirmReturnService = async (id, imagePaths, changedBy) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-  order.status = 'returned';
-  await order.save();
+  try {
+    // Validate changedBy
+    if (!mongoose.Types.ObjectId.isValid(changedBy)) {
+      throw new Error('Invalid user ID.');
+    }
 
-  const emailHtml = getConfirmReturnEmailTemplate({
-    fullName: order.user?.fullName || 'Khách hàng',
-    orderId: order._id,
-    confirmedAt: new Date(),
-    note: 'Đơn hàng đã được xác nhận hoàn hàng từ hệ thống.',
-    order,
-  });
+    const order = await Order.findById(id)
+      .populate('user')
+      .populate('items.product')
+      .session(session);
 
-  const fileName = path.basename(imagePath);
+    if (!order) {
+      throw new Error('Đơn hàng không tồn tại.');
+    }
 
-  await sendEmail(
-    order.user.email,
-    `Xác nhận hoàn hàng đơn #${order._id}`,
-    emailHtml,
-    [
-      {
-        filename: fileName,
-        path: imagePath,
-      },
-    ]
-  );
+    if (!order.user?.email) {
+      throw new Error('User email not found for this order.');
+    }
 
-  fs.unlinkSync(imagePath);
+    // Update order status and timeline
+    order.status = 'returned';
+    order.timeline = order.timeline || [];
+    order.timeline.push({
+      status: 'returned',
+      changedBy: new mongoose.Types.ObjectId(changedBy),
+      note: 'Đơn hàng đã được hoàn thành công',
+      changedAt: new Date(),
+    });
+
+    await order.save({ session });
+
+    const emailHtml = getConfirmReturnEmailTemplate({
+      fullName: order.user?.fullName || 'Khách hàng',
+      orderId: order._id,
+      confirmedAt: new Date(),
+      note: 'Đơn hàng đã được xác nhận hoàn hàng từ hệ thống.',
+      order,
+    });
+
+    // Prepare email attachments
+    const attachments = imagePaths.map((imagePath) => ({
+      filename: path.basename(imagePath),
+      path: imagePath,
+    }));
+
+    await sendEmail(
+      order.user.email,
+      `Xác nhận hoàn hàng đơn #${order._id}`,
+      emailHtml,
+      attachments
+    );
+
+    // Delete uploaded files asynchronously
+    await Promise.all(imagePaths.map((imagePath) => fs.unlink(imagePath)));
+
+    await session.commitTransaction();
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
 };
 
 const countOrders = async () => Order.countDocuments();

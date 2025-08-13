@@ -2,7 +2,7 @@ import orderService from "../services/order.service.js";
 import { baseResponse } from "../utils/index.js";
 import { logger } from "../config/index.js";
 // import { validate } from "../middlewares/validate.middleware.js";
-
+import path from 'path';
 import {
   createOrderSchema,
   createOrderFromCartSchema,
@@ -12,6 +12,7 @@ import {
   // exportOrdersQuerySchema, revenueQuerySchema
 } from "../validations/order.validation.js";
 import { getOrderConfirmationEmailTemplate, sendEmail } from "../utils/email.util.js";
+import mongoose from "mongoose";
 
 // Helper function to parse sort parameter
 const parseSortParam = (sortParam) => {
@@ -344,15 +345,40 @@ const confirmReturnController = async (req, res) => {
   try {
     const { id } = req.params;
     const files = req.files;
-    if (!files || files.length === 0)
+
+    // Validate user
+    if (!req.user?._id) {
+      return res.status(401).json({ message: 'Unauthorized: User not found.' });
+    }
+
+    // Validate order ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid order ID.' });
+    }
+
+    // Validate files
+    if (!files || files.length === 0) {
       return res.status(400).json({ message: 'Vui lòng upload ít nhất 1 ảnh xác nhận.' });
+    }
 
-    await orderService.confirmReturnService(id, files.map(f => f.path));
+    // Validate file paths
+    const uploadDir = path.resolve('uploads/returns/');
+    const isValidPath = files.every((file) => file.path.startsWith(uploadDir));
+    if (!isValidPath) {
+      return res.status(400).json({ message: 'Invalid file path.' });
+    }
 
+    await orderService.confirmReturnService(id, files.map((f) => f.path), req.user._id);
 
     res.status(200).json({ message: 'Xác nhận hoàn hàng thành công.' });
   } catch (error) {
-    console.error(error);
+    console.error(`Error confirming return for order ${req.params.id}:`, error.message, error.stack);
+    if (error.message === 'Đơn hàng không tồn tại.') {
+      return res.status(404).json({ message: error.message });
+    }
+    if (error.message === 'User email not found for this order.') {
+      return res.status(400).json({ message: error.message });
+    }
     res.status(500).json({ message: 'Lỗi server.' });
   }
 };

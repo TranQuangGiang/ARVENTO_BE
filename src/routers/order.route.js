@@ -5,7 +5,50 @@ import { authMiddleware } from "../middlewares/index.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import Roles from "../constants/role.enum.js";
 import { createOrderSchema, createOrderFromCartSchema, adminUpdateOrderStatusSchema, getOrdersQuerySchema } from "../validations/order.validation.js";
-const upload = multer({ dest: 'uploads/returns/' });
+import { promises as fs } from 'fs';
+import mongoose from "mongoose";
+
+
+const uploadDir = 'uploads/returns/';
+fs.mkdir(uploadDir, { recursive: true }).catch((err) => {
+  console.error('Failed to create upload directory:', err);
+});
+
+// Multer configuration with validation
+const upload = multer({
+  dest: uploadDir,
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png'];
+    if (!allowedTypes.includes(file.mimetype)) {
+      return cb(new Error('Only JPEG and PNG images are allowed.'));
+    }
+    cb(null, true);
+  },
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+});
+
+// Middleware to validate order ID
+const validateOrderId = (req, res, next) => {
+  const { id } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ message: 'Invalid order ID.' });
+  }
+  next();
+};
+
+// Multer error handling middleware
+const handleMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ message: 'File size exceeds 5MB limit.' });
+    }
+    if (err.code === 'LIMIT_FILE_COUNT') {
+      return res.status(400).json({ message: 'Too many files uploaded. Maximum is 5.' });
+    }
+    return res.status(400).json({ message: err.message });
+  }
+  next(err);
+};
 const router = express.Router();
 
 /**
@@ -818,8 +861,15 @@ router.get("/:id/timeline", authMiddleware.authenticateToken, orderController.ge
  *         description: Lỗi server
  */
 
-router.post('/:id/confirm-return', authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), upload.array('images', 5), orderController.confirmReturnController);
-
+router.post(
+  '/:id/confirm-return',
+  authMiddleware.authenticateToken,
+  authMiddleware.authorizeRoles(Roles.ADMIN),
+  validateOrderId,
+  upload.array('images', 5),
+  handleMulterError,
+  orderController.confirmReturnController
+);
 /**
  * @swagger
  * /orders:
