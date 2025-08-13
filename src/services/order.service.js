@@ -959,7 +959,7 @@ const confirmReturnService = async (id, imagePath) => {
   const fileName = path.basename(imagePath);
 
   await sendEmail(
-    order.user_email,
+    order.user.email,
     `Xác nhận hoàn hàng đơn #${order._id}`,
     emailHtml,
     [

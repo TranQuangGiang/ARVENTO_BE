@@ -818,7 +818,7 @@ router.get("/:id/timeline", authMiddleware.authenticateToken, orderController.ge
  *         description: Lỗi server
  */
 
-router.post('/:id/confirm-return', authMiddleware.authorizeRoles(Roles.ADMIN), upload.array('images', 5), orderController.confirmReturnController);
+router.post('/:id/confirm-return', authMiddleware.authenticateToken, authMiddleware.authorizeRoles(Roles.ADMIN), upload.array('images', 5), orderController.confirmReturnController);
 
 /**
  * @swagger
