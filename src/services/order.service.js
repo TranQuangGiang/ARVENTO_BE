@@ -978,14 +978,14 @@ const confirmReturnService = async (id, imagePaths, changedBy) => {
       fullName: order.user?.fullName || 'Khách hàng',
       orderId: order._id,
       confirmedAt: new Date(),
-      note: 'Đơn hàng đã được xác nhận hoàn hàng từ hệ thống.',
+      note: 'Đơn hàng đã được xác nhận hoàn hàng.',
       order,
     });
 
     // Prepare email attachments
     const attachments = imagePaths.map((imagePath) => ({
       filename: path.basename(imagePath),
-      path: imagePath,
+      path: path.resolve(imagePath),
     }));
 
     await sendEmail(

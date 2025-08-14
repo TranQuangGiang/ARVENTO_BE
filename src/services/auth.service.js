@@ -79,8 +79,39 @@ const forgotPassword = async (email) => {
   if (!user) throw new Error("Email does not exist");
 
   const token = tokenService.generateTokens(user).accessToken;
-  await sendEmail(email, "Reset Password", `Click to reset your password: http://localhost:5173/resetPassword?token=${token}`);
+  const resetLink = `http://localhost:5173/resetPassword?token=${token}`;
+
+  // HTML template cho email
+  const emailHtml = `
+  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+    <div style="background-color: #4CAF50; padding: 16px; color: white; text-align: center; font-size: 20px; font-weight: bold;">
+      Yêu cầu đặt lại mật khẩu
+    </div>
+    <div style="padding: 20px; color: #333;">
+      <p>Xin chào <strong>${user.fullName || 'bạn'}</strong>,</p>
+      <p>Chúng tôi đã nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn.</p>
+      <p>Nhấn vào nút bên dưới để đặt lại mật khẩu. Liên kết này sẽ hết hạn sau <strong>15 phút</strong> vì lý do bảo mật.</p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${resetLink}" style="background-color: #4CAF50; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+          Đặt lại mật khẩu
+        </a>
+      </div>
+      <p>Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.</p>
+      <p style="margin-top: 20px;">Cảm ơn bạn,<br/>Đội ngũ hỗ trợ</p>
+    </div>
+    <div style="background-color: #f0f0f0; padding: 10px; font-size: 12px; text-align: center; color: #777;">
+      Email này được gửi tự động. Vui lòng không trả lời.
+    </div>
+  </div>
+  `;
+
+  await sendEmail(
+    email,
+    "Đặt lại mật khẩu",
+    emailHtml
+  );
 };
+
 
 const resetPassword = async (token, newPassword) => {
   const payload = tokenService.verifyToken(token);
@@ -112,28 +143,25 @@ const refreshToken = async (oldRefreshToken) => {
   };
 };
 const resendVerifyEmail = async (email) => {
-  if (!email) {
-    throw new Error("Email is required");
-  }
+  if (!email) throw new Error("Email is required");
 
   const user = await userModel.findOne({ email });
-
-  if (!user) {
-    throw new Error("User not found");
-  }
-
-  if (user.verified) {
-    throw new Error("User already verified");
-  }
+  if (!user) throw new Error("User not found");
+  if (user.verified) throw new Error("User already verified");
 
   const { accessToken: verifyToken } = tokenService.generateTokens(user, {
     withRefreshToken: false,
     accessTokenExpiresIn: "5m",
   });
 
-  const html = getVerifyEmailTemplate({ fullName: user.name, token: verifyToken });
+  const html = getVerifyEmailTemplate({
+    fullName: user.name,
+    token: verifyToken,
+  });
+
   await sendEmail(user.email, "Xác thực email", html);
 };
+
 
 export default {
   register,

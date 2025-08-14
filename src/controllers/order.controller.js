@@ -346,6 +346,9 @@ const confirmReturnController = async (req, res) => {
     const { id } = req.params;
     const files = req.files;
 
+    // Log req.files to debug
+    console.log('Uploaded files:', files);
+
     // Validate user
     if (!req.user?._id) {
       return res.status(401).json({ message: 'Unauthorized: User not found.' });
@@ -363,7 +366,15 @@ const confirmReturnController = async (req, res) => {
 
     // Validate file paths
     const uploadDir = path.resolve('uploads/returns/');
-    const isValidPath = files.every((file) => file.path.startsWith(uploadDir));
+    console.log('Expected uploadDir:', uploadDir); // Log uploadDir
+    const uploadDirAbs = path.normalize(path.resolve('uploads/returns'));
+    const isValidPath = files.every((file) => {
+      const fileAbs = path.normalize(path.resolve(file.path));
+      return fileAbs.includes(uploadDirAbs);
+    });
+
+
+
     if (!isValidPath) {
       return res.status(400).json({ message: 'Invalid file path.' });
     }
