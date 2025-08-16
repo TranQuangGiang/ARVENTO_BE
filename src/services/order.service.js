@@ -940,72 +940,58 @@ const exportOrders = async (filters = {}) => {
   };
 };
 const confirmReturnService = async (id, imagePaths, changedBy) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    // Validate changedBy
-    if (!mongoose.Types.ObjectId.isValid(changedBy)) {
-      throw new Error('Invalid user ID.');
-    }
-
-    const order = await Order.findById(id)
-      .populate('user')
-      .populate('items.product')
-      .session(session);
-
-    if (!order) {
-      throw new Error('Đơn hàng không tồn tại.');
-    }
-
-    if (!order.user?.email) {
-      throw new Error('User email not found for this order.');
-    }
-
-    // Update order status and timeline
-    order.status = 'returned';
-    order.timeline = order.timeline || [];
-    order.timeline.push({
-      status: 'returned',
-      changedBy: new mongoose.Types.ObjectId(changedBy),
-      note: 'Đơn hàng đã được hoàn thành công',
-      changedAt: new Date(),
-    });
-
-    await order.save({ session });
-
-    const emailHtml = getConfirmReturnEmailTemplate({
-      fullName: order.user?.fullName || 'Khách hàng',
-      orderId: order._id,
-      confirmedAt: new Date(),
-      note: 'Đơn hàng đã được xác nhận hoàn hàng.',
-      order,
-    });
-
-    // Prepare email attachments
-    const attachments = imagePaths.map((imagePath) => ({
-      filename: path.basename(imagePath),
-      path: path.resolve(imagePath),
-    }));
-
-    await sendEmail(
-      order.user.email,
-      `Xác nhận hoàn hàng đơn #${order._id}`,
-      emailHtml,
-      attachments
-    );
-
-    // Delete uploaded files asynchronously
-    await Promise.all(imagePaths.map((imagePath) => fs.unlink(imagePath)));
-
-    await session.commitTransaction();
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
-  } finally {
-    session.endSession();
+  if (!mongoose.Types.ObjectId.isValid(changedBy)) {
+    throw new Error('Invalid user ID.');
   }
+
+  const order = await Order.findById(id)
+    .populate('user')
+    .populate('items.product');
+
+  if (!order) {
+    throw new Error('Đơn hàng không tồn tại.');
+  }
+
+  if (!order.user?.email) {
+    throw new Error('User email not found for this order.');
+  }
+
+  // Update order status and timeline
+  order.status = 'returned';
+  order.timeline = order.timeline || [];
+  order.timeline.push({
+    status: 'returned',
+    changedBy: new mongoose.Types.ObjectId(changedBy),
+    note: 'Đơn hàng đã được hoàn thành công',
+    changedAt: new Date(),
+  });
+
+  await order.save();
+
+  const emailHtml = getConfirmReturnEmailTemplate({
+    fullName: order.user?.fullName || 'Khách hàng',
+    orderId: order._id,
+    confirmedAt: new Date(),
+    note: 'Đơn hàng đã được xác nhận hoàn hàng.',
+    order,
+  });
+
+  // Prepare email attachments
+  const attachments = imagePaths.map((imagePath) => ({
+    filename: path.basename(imagePath),
+    path: path.resolve(imagePath),
+  }));
+
+  await sendEmail(
+    order.user.email,
+    `Xác nhận hoàn hàng đơn #${order._id}`,
+    emailHtml,
+    attachments
+  );
+
+  await Promise.all(imagePaths.map((imagePath) => fs.unlink(imagePath)));
 };
+
 
 const countOrders = async () => Order.countDocuments();
 const countNewOrders = async (from) => Order.countDocuments({ createdAt: { $gte: new Date(from) } });
