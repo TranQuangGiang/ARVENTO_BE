@@ -346,7 +346,6 @@ const confirmReturnController = async (req, res) => {
     const { id } = req.params;
     const files = req.files;
 
-    // Log req.files to debug
     console.log('Uploaded files:', files);
 
     // Validate user
@@ -364,26 +363,33 @@ const confirmReturnController = async (req, res) => {
       return res.status(400).json({ message: 'Vui lòng upload ít nhất 1 ảnh xác nhận.' });
     }
 
-    // Validate file paths
-    const uploadDir = path.resolve('uploads/returns/');
-    console.log('Expected uploadDir:', uploadDir); // Log uploadDir
-    const uploadDirAbs = path.normalize(path.resolve('uploads/returns'));
+    // Validate file paths (cross-platform)
+    const uploadDirAbs = path.resolve('uploads/returns');
     const isValidPath = files.every((file) => {
-      const fileAbs = path.normalize(path.resolve(file.path));
-      return fileAbs.includes(uploadDirAbs);
+      const fileAbs = path.resolve(file.path);
+      const relative = path.relative(uploadDirAbs, fileAbs);
+      return relative && !relative.startsWith('..') && !path.isAbsolute(relative);
     });
-
-
 
     if (!isValidPath) {
       return res.status(400).json({ message: 'Invalid file path.' });
     }
 
-    await orderService.confirmReturnService(id, files.map((f) => f.path), req.user._id);
+    // Lưu xác nhận hoàn hàng
+    await orderService.confirmReturnService(
+      id,
+      files.map((f) => f.path),
+      req.user._id
+    );
 
     res.status(200).json({ message: 'Xác nhận hoàn hàng thành công.' });
   } catch (error) {
-    console.error(`Error confirming return for order ${req.params.id}:`, error.message, error.stack);
+    console.error(
+      `Error confirming return for order ${req.params.id}:`,
+      error.message,
+      error.stack
+    );
+
     if (error.message === 'Đơn hàng không tồn tại.') {
       return res.status(404).json({ message: error.message });
     }
@@ -393,6 +399,7 @@ const confirmReturnController = async (req, res) => {
     res.status(500).json({ message: 'Lỗi server.' });
   }
 };
+
 export default {
   // Core order functions
   createOrder,

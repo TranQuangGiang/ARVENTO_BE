@@ -154,15 +154,26 @@ const confirmZaloPayPayment = async (callbackData) => {
       { new: true }
     );
 
-    // Cập nhật order status nếu thanh toán thành công
     if (data.return_code === 1) {
       await Order.findByIdAndUpdate(payment.order, {
         status: "confirmed",
+        payment_status: "completed",
         $push: {
           timeline: {
             status: "confirmed",
             changedAt: new Date(),
             note: "Thanh toán ZaloPay thành công",
+          },
+        },
+      });
+    } else {
+      await Order.findByIdAndUpdate(payment.order, {
+        payment_status: "failed",
+        $push: {
+          timeline: {
+            status: "failed",
+            changedAt: new Date(),
+            note: "Thanh toán ZaloPay thất bại",
           },
         },
       });
