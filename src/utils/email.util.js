@@ -16,7 +16,7 @@ const transporter = nodemailer.createTransport({
  * @param {string} to
  * @param {string} subject
  * @param {string} html
-* @param {Array<{ filename: string, path: string }>} [attachments=[]] - danh sách tệp đính kèm
+* @param {Array<{ filename: string, path: string }>} [attachments=[]]
  */
 export const sendEmail = async (to, subject, html, attachments = []) => {
   try {
@@ -193,7 +193,7 @@ export const getVerifyEmailTemplate = ({ fullName = "bạn", token }) => {
     </div>
   `;
 };
-export const getConfirmReturnEmailTemplate = ({ fullName, orderId, confirmedAt, note, order }) => {
+export const getConfirmReturnEmailTemplate = ({ fullName, orderId, confirmedAt, note, order, imageCids }) => {
   const itemRows = order.items
     .map((item) => {
       const name = item.product?.name || "Sản phẩm không xác định";
@@ -210,6 +210,8 @@ export const getConfirmReturnEmailTemplate = ({ fullName, orderId, confirmedAt, 
       `;
     })
     .join("");
+
+  const imageTags = imageCids.map(cid => `<img src="cid:${cid}" style="max-width: 100%; margin-top: 12px; border: 1px solid #ccc; border-radius: 4px;" />`).join("");
 
   return `
     <div style="font-family: Arial, sans-serif; background-color: #f4f6f8; padding: 24px;">
@@ -238,7 +240,8 @@ export const getConfirmReturnEmailTemplate = ({ fullName, orderId, confirmedAt, 
 
         <p style="margin-top: 16px; text-align: right;"><strong>Tổng thanh toán:</strong> ${order.total.toLocaleString("vi-VN")}₫</p>
 
-        <p style="margin-top: 24px;">📎 Ảnh bằng chứng hoàn hàng đã được đính kèm trong email này.</p>
+        <h3 style="margin-top: 24px;">📎 Ảnh bằng chứng hoàn hàng</h3>
+        ${imageTags}
 
         <p style="margin-top: 24px;">Cảm ơn bạn đã thực hiện hoàn hàng đúng quy trình. Nếu có bất kỳ thắc mắc nào, xin vui lòng liên hệ bộ phận hỗ trợ khách hàng.</p>
 
@@ -248,6 +251,7 @@ export const getConfirmReturnEmailTemplate = ({ fullName, orderId, confirmedAt, 
     </div>
   `;
 };
+
 export function getRefundRequestEmailTemplate({ fullName, orderId }) {
   return `
     <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">

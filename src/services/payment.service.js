@@ -124,7 +124,7 @@ const confirmZaloPayPayment = async (callbackData) => {
       throw new Error("Payment ID not found in callback data");
     }
 
-    // Tìm payment và cập nhật status
+    // Tìm payment và validate
     const payment = await Payment.findById(paymentId);
     if (!payment) {
       throw new Error("Payment not found");
@@ -134,50 +134,44 @@ const confirmZaloPayPayment = async (callbackData) => {
       throw new Error("Invalid payment method");
     }
 
-    // Cập nhật payment status
+    const isSuccess = String(data.return_code) === "1";
+
+    // Update Payment
     const updatedPayment = await Payment.findByIdAndUpdate(
       paymentId,
       {
-        status: data.return_code === 1 ? "completed" : "failed",
+        status: isSuccess ? "completed" : "failed",
         zpTransId: data.zp_trans_id,
-        paidAt: data.return_code === 1 ? new Date() : null,
+        paidAt: isSuccess ? new Date() : null,
         gatewayResponse: { ...payment.gatewayResponse, callback: data },
-        timeline: [
-          ...payment.timeline,
-          {
-            status: data.return_code === 1 ? "completed" : "failed",
+        $push: {
+          timeline: {
+            status: isSuccess ? "completed" : "failed",
             changedAt: new Date(),
             note: `ZaloPay callback: ${data.return_message}`,
           },
-        ],
+        },
       },
       { new: true }
     );
 
-    if (data.return_code === 1) {
-      await Order.findByIdAndUpdate(payment.order, {
-        status: "confirmed",
-        payment_status: "completed",
+    // Update Order
+    await Order.findByIdAndUpdate(
+      payment.order,
+      {
+        payment_status: isSuccess ? "completed" : "failed",
         $push: {
           timeline: {
-            status: "confirmed",
+            status: isSuccess ? "completed" : "failed",
             changedAt: new Date(),
-            note: "Thanh toán ZaloPay thành công",
+            note: isSuccess
+              ? "Thanh toán ZaloPay thành công"
+              : "Thanh toán ZaloPay thất bại",
           },
         },
-      });
-    } else {
-      await Order.findByIdAndUpdate(payment.order, {
-        payment_status: "failed",
-        $push: {
-          timeline: {
-            status: "failed",
-            changedAt: new Date(),
-            note: "Thanh toán ZaloPay thất bại",
-          },
-        },
-      });
-    }
+      },
+      { new: true }
+    );
 
     return updatedPayment;
   } catch (error) {

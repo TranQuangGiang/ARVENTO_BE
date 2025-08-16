@@ -7,7 +7,7 @@ import ExcelJS from "exceljs";
 import mongoose from "mongoose";
 import Roles from "../constants/role.enum.js";
 import { getCancelConfirmationEmailTemplate, getConfirmReturnEmailTemplate, getOrderStatusChangedEmailTemplate, getRefundRequestEmailTemplate, getReturnApprovedEmailTemplate, getReturnRequestEmailTemplate, sendEmail } from "../utils/email.util.js";
-import fs from 'fs';
+import fs from "fs/promises";
 import path from 'path';
 // Validate và kiểm tra tồn kho cho variant
 const validateOrderItem = async (item) => {
@@ -968,19 +968,21 @@ const confirmReturnService = async (id, imagePaths, changedBy) => {
 
   await order.save();
 
+  const attachments = imagePaths.map((imagePath, index) => ({
+    filename: path.basename(imagePath),
+    path: path.resolve(imagePath),
+    cid: `image${index}@return`
+  }));
+
   const emailHtml = getConfirmReturnEmailTemplate({
     fullName: order.user?.fullName || 'Khách hàng',
     orderId: order._id,
     confirmedAt: new Date(),
     note: 'Đơn hàng đã được xác nhận hoàn hàng.',
     order,
+    imageCids: attachments.map(a => a.cid)
   });
 
-  // Prepare email attachments
-  const attachments = imagePaths.map((imagePath) => ({
-    filename: path.basename(imagePath),
-    path: path.resolve(imagePath),
-  }));
 
   await sendEmail(
     order.user.email,
