@@ -11,12 +11,14 @@ const createCoupon = async (req, res) => {
       excludedProducts = [],
       categories = [],
       excludedCategories = [],
+      usageLimit,
+      perUserLimit,
+      startDate,
+      expiryDate,
     } = req.body;
 
-    // 1. Check trùng product
-    const duplicateProducts = products.filter((p) =>
-      excludedProducts.includes(p)
-    );
+    // 1. Duplicate in same arrays already handled by Joi .unique(), but safe-check:
+    const duplicateProducts = products.filter((p) => excludedProducts.includes(p));
     if (duplicateProducts.length > 0) {
       return responseUtil.badRequestResponse(
         res,
@@ -24,11 +26,7 @@ const createCoupon = async (req, res) => {
         `Sản phẩm được áp dụng và không được áp dụng không được trùng nhau. Trùng: ${duplicateProducts.join(", ")}`
       );
     }
-
-    // 2. Check trùng categories
-    const duplicateCategories = categories.filter((c) =>
-      excludedCategories.includes(c)
-    );
+    const duplicateCategories = categories.filter((c) => excludedCategories.includes(c));
     if (duplicateCategories.length > 0) {
       return responseUtil.badRequestResponse(
         res,
@@ -37,17 +35,33 @@ const createCoupon = async (req, res) => {
       );
     }
 
-    // 3. Nếu có products -> kiểm tra category của chúng không nằm trong excludedCategories
+    // 2. Check product ids exist
+    const allProductIds = [...new Set([...products, ...excludedProducts])];
+    if (allProductIds.length > 0) {
+      const foundProducts = await Product.find({ _id: { $in: allProductIds } }).select('_id');
+      const foundIds = foundProducts.map(p => p._id.toString());
+      const notFound = allProductIds.filter(id => !foundIds.includes(id));
+      if (notFound.length > 0) {
+        return responseUtil.badRequestResponse(res, null, `Không tìm thấy sản phẩm với id: ${notFound.join(', ')}`);
+      }
+    }
+
+    // 3. Check category ids exist
+    const allCategoryIds = [...new Set([...categories, ...excludedCategories])];
+    if (allCategoryIds.length > 0) {
+      const foundCategories = await Category.find({ _id: { $in: allCategoryIds } }).select('_id');
+      const foundCIds = foundCategories.map(c => c._id.toString());
+      const notFoundCats = allCategoryIds.filter(id => !foundCIds.includes(id));
+      if (notFoundCats.length > 0) {
+        return responseUtil.badRequestResponse(res, null, `Không tìm thấy danh mục với id: ${notFoundCats.join(', ')}`);
+      }
+    }
+
+    // 4. Nếu có products -> kiểm tra category của chúng không nằm trong excludedCategories
     if (products.length > 0 && excludedCategories.length > 0) {
-      const productDocs = await Product.find({ _id: { $in: products } });
-      const categoryIds = productDocs
-        .map((p) => p.category_id?.toString())
-        .filter(Boolean);
-
-      const overlap = categoryIds.filter((catId) =>
-        excludedCategories.includes(catId)
-      );
-
+      const productDocs = await Product.find({ _id: { $in: products } }).select('category_id');
+      const categoryIds = productDocs.map((p) => p.category_id?.toString()).filter(Boolean);
+      const overlap = categoryIds.filter((catId) => excludedCategories.includes(catId));
       if (overlap.length > 0) {
         return responseUtil.badRequestResponse(
           res,
@@ -57,20 +71,11 @@ const createCoupon = async (req, res) => {
       }
     }
 
-    // 4. Nếu có excludedProducts -> kiểm tra category của chúng không nằm trong categories
+    // 5. Nếu có excludedProducts -> kiểm tra category của chúng không nằm trong categories
     if (excludedProducts.length > 0 && categories.length > 0) {
-      const excludedProductDocs = await Product.find({
-        _id: { $in: excludedProducts }
-      });
-
-      const excludedCategoryIds = excludedProductDocs
-        .map((p) => p.category_id?.toString())
-        .filter(Boolean);
-
-      const overlap = excludedCategoryIds.filter((catId) =>
-        categories.includes(catId)
-      );
-
+      const excludedProductDocs = await Product.find({ _id: { $in: excludedProducts } }).select('category_id');
+      const excludedCategoryIds = excludedProductDocs.map((p) => p.category_id?.toString()).filter(Boolean);
+      const overlap = excludedCategoryIds.filter((catId) => categories.includes(catId));
       if (overlap.length > 0) {
         return responseUtil.badRequestResponse(
           res,
@@ -80,11 +85,25 @@ const createCoupon = async (req, res) => {
       }
     }
 
-    //  Không vi phạm => tạo
+    // 6. usageLimit vs perUserLimit
+    if (usageLimit !== undefined && usageLimit !== null && perUserLimit > usageLimit) {
+      return responseUtil.badRequestResponse(res, null, 'perUserLimit không được lớn hơn usageLimit');
+    }
+
+    // 7. expiryDate không ở quá khứ
+    if (expiryDate && new Date(expiryDate) < new Date()) {
+      return responseUtil.badRequestResponse(res, null, 'expiryDate không được ở quá khứ');
+    }
+
+    // 8. Nếu mọi thứ ok => tạo
     const coupon = await couponService.createCoupon(req.body);
     responseUtil.createdResponse(res, coupon, 'Tạo mã giảm giá thành công');
   } catch (error) {
-    responseUtil.errorResponse(res, null, error.message, 400);
+    // 9. Xử lý duplicate key trả 409
+    if (error && error.message && error.message.includes('Mã coupon đã tồn tại')) {
+      return responseUtil.errorResponse(res, null, error.message, 409);
+    }
+    responseUtil.errorResponse(res, null, error.message || 'Lỗi server', 400);
   }
 };
 
@@ -115,8 +134,9 @@ const updateCoupon = async (req, res) => {
     const coupon = await couponService.updateCoupon(req.params.id, req.body);
     responseUtil.successResponse(res, coupon, 'Cập nhật mã giảm giá thành công');
   } catch (error) {
-        // Nếu coupon không tìm thấy thì trả về 404, các lỗi khác 400
-    const statusCode = error.message === 'Coupon not found' ? 404 : 400;
+    let statusCode = 400;
+    if (error.message === 'Coupon not found') statusCode = 404;
+    if (error.message === 'Mã coupon đã tồn tại') statusCode = 409;
     responseUtil.errorResponse(res, null, error.message, statusCode);
   }
 };
