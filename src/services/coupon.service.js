@@ -6,14 +6,41 @@ import logger from "../config/logger.config.js";
 import { generateRandomCode } from "../utils/response.util.js";
 console.log("[DEBUG] Product model:", Product);
 // Tạo coupon mới
+const MAX_GEN_ATTEMPTS = 6;
+
 const createCoupon = async (couponData) => {
+  // nếu user không truyền code -> thử sinh và tạo, tránh duplicate race
   if (!couponData.code) {
-    couponData.code = generateRandomCode(8);
+    let attempts = 0;
+    while (attempts < MAX_GEN_ATTEMPTS) {
+      couponData.code = generateRandomCode(8); // hàm bạn có sẵn
+      try {
+        const coupon = await Coupon.create(couponData);
+        return coupon;
+      } catch (err) {
+        // duplicate key on code -> thử lần nữa
+        if (err.code === 11000 && err.keyPattern && err.keyPattern.code) {
+          attempts++;
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw new Error('Không tạo được mã coupon duy nhất, thử lại sau');
   }
 
-  const coupon = await Coupon.create(couponData);
-  return coupon;
+  // Nếu user truyền code -> tạo và catch duplicate key
+  try {
+    const coupon = await Coupon.create(couponData);
+    return coupon;
+  } catch (err) {
+    if (err.code === 11000 && err.keyPattern && err.keyPattern.code) {
+      throw new Error('Mã coupon đã tồn tại');
+    }
+    throw err;
+  }
 };
+
 
 // Lấy tất cả coupon (cho admin)
 const getAllCoupons = async (queryParams) => {
@@ -50,44 +77,87 @@ const getCouponById = async (couponId) => {
   return coupon;
 };
 //cập nhật coupon
-const updateCoupon = async (couponId, updateData) => {
+export const updateCoupon = async (couponId, updateData) => {
   const existingCoupon = await Coupon.findById(couponId);
   if (!existingCoupon) {
-    throw new Error("Coupon not found");
+    throw new Error('Coupon not found');
   }
 
-  const startDate = existingCoupon.startDate;
-  const expiryDate = updateData.expiryDate;
+  // ====== Giá trị hiệu lực (effective values) ======
+  const effectiveType = updateData.discountType ?? existingCoupon.discountType;
+  const effectiveValue = updateData.discountValue ?? existingCoupon.discountValue;
 
-  if (expiryDate && startDate && new Date(expiryDate) <= new Date(startDate)) {
-    throw new Error("Ngày hết hạn phải sau ngày bắt đầu");
+  const effectiveStart = updateData.startDate ? new Date(updateData.startDate) : existingCoupon.startDate;
+  const effectiveExpiry = (updateData.expiryDate !== undefined)
+    ? (updateData.expiryDate ? new Date(updateData.expiryDate) : null)
+    : existingCoupon.expiryDate;
+
+  const effectiveMinSpend = (updateData.minSpend !== undefined) ? updateData.minSpend : existingCoupon.minSpend;
+  const effectiveMaxSpend = (updateData.maxSpend !== undefined) ? updateData.maxSpend : existingCoupon.maxSpend;
+
+  const effectiveUsageLimit = (updateData.usageLimit !== undefined) ? updateData.usageLimit : existingCoupon.usageLimit;
+  const effectivePerUser = (updateData.perUserLimit !== undefined) ? updateData.perUserLimit : existingCoupon.perUserLimit;
+
+  // ====== Validate theo giá trị hiệu lực ======
+
+  // 1) discountValue
+  if (effectiveValue !== undefined && effectiveValue !== null) {
+    if (Number(effectiveValue) < 0.01) {
+      throw new Error('Giá trị giảm giá phải lớn hơn 0');
+    }
+    if (effectiveType === 'percentage' && Number(effectiveValue) > 100) {
+      throw new Error('Giảm giá phần trăm tối đa 100%');
+    }
   }
 
-  // ------------------------------
-  // Validate logic mới
-  // ------------------------------
-
-  // Sử dụng dữ liệu mới nếu có, nếu không dùng giá trị cũ
-  const products = (updateData.products || existingCoupon.products || []).map((id) => id.toString());
-  const excludedProducts = (updateData.excludedProducts || existingCoupon.excludedProducts || []).map((id) => id.toString());
-  const categories = (updateData.categories || existingCoupon.categories || []).map((id) => id.toString());
-  const excludedCategories = (updateData.excludedCategories || existingCoupon.excludedCategories || []).map((id) => id.toString());
-
-  // 1. products vs excludedProducts không được trùng nhau
-  const commonProducts = products.filter((id) => excludedProducts.includes(id));
-  if (commonProducts.length > 0) {
-    throw new Error("Sản phẩm được áp dụng và không được áp dụng không được trùng nhau.");
+  // 2) expiry > start
+  if (effectiveExpiry && effectiveStart && new Date(effectiveExpiry) <= new Date(effectiveStart)) {
+    throw new Error('Ngày hết hạn phải sau ngày bắt đầu');
   }
 
-  // 2. categories vs excludedCategories không được trùng nhau
-  const commonCategories = categories.filter((id) => excludedCategories.includes(id));
-  if (commonCategories.length > 0) {
-    throw new Error("Danh mục được áp dụng và không được áp dụng không được trùng nhau.");
+  // 3) maxSpend >= minSpend (khi maxSpend != null)
+  if (effectiveMaxSpend !== null && effectiveMaxSpend !== undefined && effectiveMinSpend !== undefined) {
+    if (Number(effectiveMaxSpend) < Number(effectiveMinSpend)) {
+      throw new Error('Số tiền tối thiểu không được lớn hơn số tiền tối đa');
+    }
   }
 
-  // 3. products không được có category nằm trong excludedCategories
+  // 4) usageLimit vs usageCount
+  if (effectiveUsageLimit !== null && effectiveUsageLimit !== undefined) {
+    if (!Number.isInteger(effectiveUsageLimit) || effectiveUsageLimit < 1) {
+      throw new Error('usageLimit phải là số nguyên >= 1 hoặc null');
+    }
+    if (effectiveUsageLimit < existingCoupon.usageCount) {
+      throw new Error(`Giới hạn sử dụng (${effectiveUsageLimit}) không được nhỏ hơn số lần đã dùng (${existingCoupon.usageCount})`);
+    }
+  }
+
+  // 5) perUserLimit
+  if (effectivePerUser !== undefined) {
+    if (!Number.isInteger(effectivePerUser) || effectivePerUser < 1) {
+      throw new Error('perUserLimit phải là số nguyên >= 1');
+    }
+    if (effectiveUsageLimit !== null && effectiveUsageLimit !== undefined && effectivePerUser > effectiveUsageLimit) {
+      throw new Error('perUserLimit không được lớn hơn usageLimit');
+    }
+  }
+
+  // ====== Validate include/exclude (giữ logic của bạn) ======
+  const products = (updateData.products ?? existingCoupon.products ?? []).map(id => id.toString());
+  const excludedProducts = (updateData.excludedProducts ?? existingCoupon.excludedProducts ?? []).map(id => id.toString());
+  const categories = (updateData.categories ?? existingCoupon.categories ?? []).map(id => id.toString());
+  const excludedCategories = (updateData.excludedCategories ?? existingCoupon.excludedCategories ?? []).map(id => id.toString());
+
+  // 6) overlap
+  const commonProducts = products.filter(id => excludedProducts.includes(id));
+  if (commonProducts.length > 0) throw new Error('Sản phẩm được áp dụng và không được áp dụng không được trùng nhau.');
+
+  const commonCategories = categories.filter(id => excludedCategories.includes(id));
+  if (commonCategories.length > 0) throw new Error('Danh mục được áp dụng và không được áp dụng không được trùng nhau.');
+
+  // 7) products không thuộc excludedCategories
   if (products.length > 0 && excludedCategories.length > 0) {
-    const appliedProducts = await Product.find({ _id: { $in: products } });
+    const appliedProducts = await Product.find({ _id: { $in: products } }).select('category_id');
     for (const product of appliedProducts) {
       const catId = product.category_id?.toString();
       if (excludedCategories.includes(catId)) {
@@ -96,9 +166,9 @@ const updateCoupon = async (couponId, updateData) => {
     }
   }
 
-  // 4. excludedProducts không được có category nằm trong categories
+  // 8) excludedProducts không thuộc categories
   if (excludedProducts.length > 0 && categories.length > 0) {
-    const excludedProds = await Product.find({ _id: { $in: excludedProducts } });
+    const excludedProds = await Product.find({ _id: { $in: excludedProducts } }).select('category_id');
     for (const product of excludedProds) {
       const catId = product.category_id?.toString();
       if (categories.includes(catId)) {
@@ -107,16 +177,42 @@ const updateCoupon = async (couponId, updateData) => {
     }
   }
 
-  // ------------------------------
+  // 9) Kiểm tra ID tồn tại nếu các mảng có trong payload
+  if (updateData.products || updateData.excludedProducts) {
+    const allProdIds = [...new Set([...(updateData.products ?? []), ...(updateData.excludedProducts ?? [])])];
+    if (allProdIds.length) {
+      const found = await Product.find({ _id: { $in: allProdIds } }).select('_id');
+      const foundIds = new Set(found.map(d => d._id.toString()));
+      const missing = allProdIds.filter(id => !foundIds.has(id));
+      if (missing.length) throw new Error(`Không tìm thấy sản phẩm với id: ${missing.join(', ')}`);
+    }
+  }
+  if (updateData.categories || updateData.excludedCategories) {
+    const allCatIds = [...new Set([...(updateData.categories ?? []), ...(updateData.excludedCategories ?? [])])];
+    if (allCatIds.length) {
+      const found = await Category.find({ _id: { $in: allCatIds } }).select('_id');
+      const foundIds = new Set(found.map(d => d._id.toString()));
+      const missing = allCatIds.filter(id => !foundIds.has(id));
+      if (missing.length) throw new Error(`Không tìm thấy danh mục với id: ${missing.join(', ')}`);
+    }
+  }
 
-  const updatedCoupon = await Coupon.findByIdAndUpdate(couponId, updateData, {
-    new: true,
-    runValidators: true,
-  });
-
-  return updatedCoupon;
+  // ====== Thực hiện update ======
+  try {
+    const updatedCoupon = await Coupon.findByIdAndUpdate(
+      couponId,
+      updateData,
+      { new: true, runValidators: true }
+    );
+    return updatedCoupon;
+  } catch (err) {
+    if (err?.code === 11000 && err?.keyPattern?.code) {
+      // trùng mã coupon khi update code
+      throw new Error('Mã coupon đã tồn tại');
+    }
+    throw err;
+  }
 };
-
 // Xóa coupon
 const deleteCoupon = async (couponId) => {
   const coupon = await Coupon.findByIdAndDelete(couponId);

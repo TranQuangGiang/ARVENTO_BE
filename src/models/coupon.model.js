@@ -23,7 +23,7 @@ const couponSchema = new Schema(
         discountValue: {
             type: Number,
             required: [true, 'Vui lòng nhập giá trị giảm giá'],
-            min: [0, 'Giá trị giảm giá không được âm'],
+            min: [0.01, 'Giá trị giảm giá phải lớn hơn 0'],
             validate: {
                 validator: function (value) {
                     if (this.discountType === 'percentage') {
