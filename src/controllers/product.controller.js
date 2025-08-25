@@ -1,7 +1,7 @@
 
 console.log("🚀 Controller loaded!"); import { productService } from '../services/index.js';
 // import { exportProducts as exportProductService } from '../services/product.service.js';
-import { baseResponse, generateSlug, parseQueryParams } from '../utils/index.js';
+import { baseResponse, parseQueryParams } from '../utils/index.js';
 import { logger } from '../config/index.js';
 import { Product, Variant, Option } from '../models/index.js';
 import { slugify } from '../utils/slugify.js';
@@ -216,32 +216,31 @@ const updateProduct = async (req, res) => {
 const updateProductStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { isActive } = req.body;
+    let { isActive } = req.body;
 
-    // Kiểm tra product tồn tại
-    const product = await Product.findById(id);
-    if (!product) {
-      return baseResponse.notFoundResponse(res, null, 'Product not found');
+    // Ép kiểu an toàn
+    if (typeof isActive === "string") {
+      isActive = isActive.toLowerCase() === "true";
     }
 
-    // Cập nhật trạng thái + đánh dấu là thay đổi thủ công
-    const updatedProduct = await Product.findByIdAndUpdate(
-      id,
-      {
-        isActive,
-        is_manual: true, // admin cập nhật thủ công
-        updated_at: new Date()
-      },
-      { new: true }
-    );
+    const product = await Product.findById(id);
+    if (!product) {
+      return baseResponse.notFoundResponse(res, null, "Product not found");
+    }
 
-    return baseResponse.successResponse(res, updatedProduct, "Update product status successfully");
+    // update qua save() để chạy hooks
+    product.isActive = isActive;
+    product.is_manual = true; // admin cập nhật thủ công
+    await product.save();
+
+    return baseResponse.successResponse(res, product, "Update product status successfully");
   } catch (err) {
     logger.error(`[PATCH] /products/${req.params.id}/status - Error: ${err.message}`, { stack: err.stack });
     const status = err.statusCode || 500;
     return baseResponse.errorResponse(res, null, err.message, status);
   }
 };
+
 
 const deleteProduct = async (req, res) => {
   try {
