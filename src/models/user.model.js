@@ -37,6 +37,11 @@ const userSchema = new mongoose.Schema(
       ref: "MembershipTier",
       default: null,
     },
+    status: {
+      type: String,
+      enum: ["active", "blocked", "banned"],
+      default: "active",
+    },
     total_spending: {
       type: Number,
       default: 0,

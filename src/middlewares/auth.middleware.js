@@ -18,8 +18,8 @@ const authenticateToken = async (req, res, next) => {
   const token = authHeader.split(' ')[1];
 
   try {
-    
-    const decoded = jwtUtils.verifyToken(token, accessTokenSecret); // { id: user._id, email: user.email, role: user.role }
+
+    const decoded = jwtUtils.verifyToken(token, accessTokenSecret);
     const userId = decoded.id;
 
     logger.info(`[AUTH] Token decoded for userId: ${userId}`);
@@ -56,7 +56,12 @@ const authenticateToken = async (req, res, next) => {
       return baseResponse.unauthorizedResponse(res, null, 'User not found');
     }
 
-    if (user.status === 'blocked' || user.isBanned) {
+    if (!user.verified) {
+      logger.warn(`[AUTH] Unverified user attempted access: ${user.email}`);
+      return baseResponse.forbiddenResponse(res, null, 'Your account is not verified yet');
+    }
+
+    if (user.status === 'blocked') {
       logger.warn(`[AUTH] Blocked/banned user attempted access: ${user.email}`);
       return baseResponse.forbiddenResponse(res, null, 'Your account is blocked');
     }

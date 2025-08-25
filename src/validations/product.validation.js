@@ -91,7 +91,7 @@ export const productValidate = {
     is_manual: Joi.boolean().optional().messages({
       "boolean.base": "is_manual phải là boolean",
     }),
-  }),
+  }).unknown(true),
   update: Joi.object({
     category_id: Joi.alternatives().try(Joi.string(), Joi.object()).messages({
       "string.empty": "category_id không được để trống",
@@ -127,16 +127,15 @@ export const productValidate = {
     }),
     images: Joi.array().items(imageValidation).optional(),
     variants: Joi.array().items(variantValidation).optional(),
-  options: Joi.object({
-    size: Joi.array().items(Joi.string()).optional(),
-    color: Joi.array().items(
-      Joi.object({
-        name: Joi.string().required(),
-        hex: Joi.string().optional(),
-      })
-    ).optional(),
-  }).optional(),
-    variants: Joi.array().items(variantValidation).optional(),
+    options: Joi.object({
+      size: Joi.array().items(Joi.string()).optional(),
+      color: Joi.array().items(
+        Joi.object({
+          name: Joi.string().required(),
+          hex: Joi.string().optional(),
+        })
+      ).optional(),
+    }).optional().unknown(true),
   }),
   search: Joi.object({
     query: Joi.string().max(100).messages({

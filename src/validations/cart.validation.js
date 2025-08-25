@@ -78,7 +78,7 @@ export const addItemSchema = Joi.object({
     "any.required": "Thiếu thông tin biến thể sản phẩm",
     "object.base": "selected_variant phải là object",
   }),
-  quantity: Joi.number().integer().min(1).max(10).required().messages({
+  quantity: Joi.number().integer().min(1).required().messages({
     "number.base": "Số lượng phải là số",
     "number.integer": "Số lượng phải là số nguyên",
     "number.min": "Số lượng tối thiểu là 1",
