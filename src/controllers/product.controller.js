@@ -230,7 +230,7 @@ const updateProductStatus = async (req, res) => {
 
     // update qua save() để chạy hooks
     product.isActive = isActive;
-    product.is_manual = true; // admin cập nhật thủ công
+    product.is_manual = true;
     await product.save();
 
     return baseResponse.successResponse(res, product, "Update product status successfully");

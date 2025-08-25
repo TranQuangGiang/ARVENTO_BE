@@ -67,6 +67,15 @@ const createProduct = async (data) => {
       }
     }
 
+    if (typeof data.is_manual === "boolean") {
+      // Admin muốn set thủ công
+      data.isActive = !!data.isActive; // đảm bảo boolean
+    } else {
+      // Mặc định: tự động bật/tắt theo stock
+      data.is_manual = false;
+      data.isActive = data.stock > 0;
+    }
+
     // Gán slug nếu chưa có, đảm bảo không trùng
     let slug = slugify(data.name || data.slug);
     let counter = 1;
