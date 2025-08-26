@@ -116,7 +116,7 @@ export const confirmZaloPayPayment = async (callbackData) => {
 
     const { data } = callbackData;
     const embedData = JSON.parse(data.embed_data || "{}");
-    const paymentId = embedData.orderId;
+    const paymentId = embedData.paymentId;
     if (!paymentId) throw new Error("Payment ID không tồn tại");
 
     const payment = await Payment.findById(paymentId);
