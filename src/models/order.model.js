@@ -64,6 +64,26 @@ const orderItemSchema = new mongoose.Schema(
       ref: "Product",
       required: [true, "ID sản phẩm là bắt buộc"],
     },
+    product_snapshot: {
+      _id: String,
+      product_code: String,
+      name: String,
+      slug: String,
+      description: String,
+      original_price: Number,
+      stock: Number,
+      images: [
+        {
+          url: String,
+          alt: String,
+        },
+      ],
+      tags: [String],
+      options: mongoose.Schema.Types.Mixed,
+      isActive: Boolean,
+      is_manual: Boolean,
+    },
+
     selected_variant: {
       type: OrderVariantSchema,
       required: [true, "Variant sản phẩm là bắt buộc"],

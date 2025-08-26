@@ -69,12 +69,18 @@ const createProduct = async (data) => {
 
     if (typeof data.is_manual === "boolean") {
       // Admin muốn set thủ công
+      console.log("[PRODUCT] is_manual được set thủ công:", data.is_manual);
       data.isActive = !!data.isActive; // đảm bảo boolean
+      console.log("[PRODUCT] isActive (thủ công):", data.isActive);
     } else {
       // Mặc định: tự động bật/tắt theo stock
       data.is_manual = false;
       data.isActive = data.stock > 0;
+      console.log("[PRODUCT] Không có is_manual, tự set mặc định:");
+      console.log("   ➜ Stock:", data.stock);
+      console.log("   ➜ isActive (tự động):", data.isActive);
     }
+
 
     // Gán slug nếu chưa có, đảm bảo không trùng
     let slug = slugify(data.name || data.slug);

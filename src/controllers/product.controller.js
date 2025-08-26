@@ -1,5 +1,5 @@
 
-console.log("🚀 Controller loaded!"); import { productService } from '../services/index.js';
+import { productService } from '../services/index.js';
 // import { exportProducts as exportProductService } from '../services/product.service.js';
 import { baseResponse, parseQueryParams } from '../utils/index.js';
 import { logger } from '../config/index.js';
@@ -194,6 +194,7 @@ const updateProduct = async (req, res) => {
             Variant.create({
               ...variant,
               product_id: id,
+              // eslint-disable-next-line no-undef
               price: new mongoose.Types.Decimal128(product.original_price.toString()),
             })
           )

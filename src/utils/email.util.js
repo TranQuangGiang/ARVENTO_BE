@@ -35,6 +35,57 @@ export const sendEmail = async (to, subject, html, attachments = []) => {
     throw new Error("Gửi email thất bại");
   }
 };
+export const getOrderCancelledEmailTemplate = ({ fullName, orderId, createdAt, items, total, note }) => {
+  const itemRows = items
+    .map(
+      (item) => `
+        <tr>
+          <td style="padding: 8px 12px; border: 1px solid #eee;">${item.product.name}</td>
+          <td style="padding: 8px 12px; border: 1px solid #eee; text-align: center;">${item.quantity}</td>
+          <td style="padding: 8px 12px; border: 1px solid #eee; text-align: right;">${item.total_price?.toLocaleString?.() || "0"}₫</td>
+        </tr>
+      `
+    )
+    .join("");
+
+  return `
+    <div style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 24px;">
+      <div style="max-width: 600px; margin: 0 auto; background-color: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+        <div style="background-color: #dc3545; color: #fff; padding: 20px;">
+          <h2 style="margin: 0;">❌ Thông báo hủy đơn hàng</h2>
+        </div>
+        <div style="padding: 24px;">
+          <p>Chào <strong>${fullName}</strong>,</p>
+          <p>Đơn hàng <strong>#${orderId}</strong> của bạn đặt vào lúc <strong>${new Date(createdAt).toLocaleString()}</strong> đã được hủy.</p>
+
+          ${note ? `<p><strong>Lý do hủy:</strong> ${note}</p>` : ""}
+
+          <h3>🧾 Chi tiết đơn hàng</h3>
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            <thead>
+              <tr style="background-color: #f0f0f0;">
+                <th style="padding: 8px 12px; border: 1px solid #ccc; text-align: left;">Sản phẩm</th>
+                <th style="padding: 8px 12px; border: 1px solid #ccc; text-align: center;">Số lượng</th>
+                <th style="padding: 8px 12px; border: 1px solid #ccc; text-align: right;">Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemRows}
+              <tr>
+                <td colspan="2" style="padding: 12px; text-align: right; font-weight: bold;">Tổng cộng</td>
+                <td style="padding: 12px; text-align: right; font-weight: bold;">${total?.toLocaleString?.() || "0"}₫</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p style="margin-top: 24px;">Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi. Nếu bạn có bất kỳ thắc mắc nào, vui lòng liên hệ bộ phận hỗ trợ khách hàng.</p>
+          <p style="font-size: 13px; color: #777;">Đây là email tự động, vui lòng không trả lời trực tiếp.</p>
+        </div>
+      </div>
+    </div>
+  `;
+};
+
 export const getOrderConfirmationEmailTemplate = ({ fullName, phone, address, orderId, createdAt, items, total, paymentMethod }) => {
   const itemRows = items
     .map(

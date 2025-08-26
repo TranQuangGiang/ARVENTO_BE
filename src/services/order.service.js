@@ -6,9 +6,14 @@ import logger from "../config/logger.config.js";
 import ExcelJS from "exceljs";
 import mongoose from "mongoose";
 import Roles from "../constants/role.enum.js";
-import { getCancelConfirmationEmailTemplate, getConfirmReturnEmailTemplate, getOrderStatusChangedEmailTemplate, getRefundRequestEmailTemplate, getReturnApprovedEmailTemplate, getReturnRequestEmailTemplate, sendEmail } from "../utils/email.util.js";
+import { getCancelConfirmationEmailTemplate, getConfirmReturnEmailTemplate, getOrderCancelledEmailTemplate, getOrderStatusChangedEmailTemplate, getRefundRequestEmailTemplate, getReturnApprovedEmailTemplate, getReturnRequestEmailTemplate, sendEmail } from "../utils/email.util.js";
 import fs from "fs/promises";
 import path from 'path';
+import Payment from "../models/payment.model.js";
+import zalopayUtil from "../utils/payment/zalopay.util.js";
+
+const ADMIN_EMAIL = "quanggiang69.dev@gmail.com";
+
 // Validate và kiểm tra tồn kho cho variant
 const validateOrderItem = async (item) => {
   try {
@@ -80,6 +85,7 @@ const validateOrderItem = async (item) => {
     throw error;
   }
 };
+
 
 // Kiểm tra và cập nhật tồn kho cho tất cả items
 const checkAndUpdateStock = async (items) => {
@@ -185,6 +191,10 @@ const createOrder = async (orderData) => {
 
     for (const item of items) {
       const { product, selected_variant, quantity } = item;
+      const productDoc = await Product.findById(product);
+      if (!productDoc) {
+        throw new Error(`Không tìm thấy sản phẩm với ID: ${product}`);
+      }
 
       const variant = await Variant.findOne({
         product_id: product,
@@ -206,6 +216,20 @@ const createOrder = async (orderData) => {
       rawSubtotal += itemTotal;
 
       finalItems.push({
+        product_snapshot: {
+          _id: productDoc._id.toString(),
+          product_code: productDoc.product_code,
+          name: productDoc.name,
+          slug: productDoc.slug,
+          description: productDoc.description,
+          original_price: parseFloat(productDoc.original_price.toString()),
+          stock: productDoc.stock,
+          images: productDoc.images,
+          tags: productDoc.tags,
+          options: Object.fromEntries(productDoc.options),
+          isActive: productDoc.isActive,
+          is_manual: productDoc.is_manual,
+        },
         product,
         variant: variant._id,
         quantity,
@@ -364,6 +388,10 @@ const createOrderFromCart = async (userId, orderData) => {
 
     for (const cartItem of activeItems) {
       const { product, selected_variant, quantity } = cartItem;
+      const productDoc = await Product.findById(product);
+      if (!productDoc) {
+        throw new Error(`Không tìm thấy sản phẩm với ID: ${product}`);
+      }
 
       const variant = await Variant.findOne({
         product_id: product,
@@ -385,6 +413,20 @@ const createOrderFromCart = async (userId, orderData) => {
       subtotal += totalPrice;
 
       orderItems.push({
+        product_snapshot: {
+          _id: productDoc._id.toString(),
+          product_code: productDoc.product_code,
+          name: productDoc.name,
+          slug: productDoc.slug,
+          description: productDoc.description,
+          original_price: parseFloat(productDoc.original_price.toString()),
+          stock: productDoc.stock,
+          images: productDoc.images,
+          tags: productDoc.tags,
+          options: Object.fromEntries(productDoc.options),
+          isActive: productDoc.isActive,
+          is_manual: productDoc.is_manual,
+        },
         product,
         variant: variant._id,
         selected_variant,
@@ -502,9 +544,18 @@ const getMyOrders = async (user, filters = {}) => {
       .populate("billing_address");
 
     const total = await Order.countDocuments(query);
+    const transformedOrders = orders.map(order => {
+      order.items = order.items.map(item => {
+        if (!item.product && item.product_snapshot) {
+          item.product = item.product_snapshot;
+        }
+        return item;
+      });
+      return order;
+    });
 
     return {
-      orders,
+      orders: transformedOrders,
       pagination: {
         page,
         limit,
@@ -517,16 +568,26 @@ const getMyOrders = async (user, filters = {}) => {
     throw error;
   }
 };
-
 const getOrderDetail = async (id, userId = null) => {
   try {
     const query = { _id: id };
     if (userId) query.user = userId;
 
-    const order = await Order.findOne(query).populate("user", "name email phone").populate("items.product", "name images slug description").populate("timeline.changedBy", "name email");
+    const order = await Order.findOne(query)
+      .populate("user", "name email phone")
+      .populate("items.product", "name images slug description")
+      .populate("timeline.changedBy", "name email");
+
     if (!order) {
       throw new Error("Không tìm thấy đơn hàng");
     }
+
+    order.items = order.items.map(item => {
+      if (!item.product && item.product_snapshot) {
+        item.product = item.product_snapshot;
+      }
+      return item;
+    });
 
     return order;
   } catch (error) {
@@ -535,9 +596,89 @@ const getOrderDetail = async (id, userId = null) => {
   }
 };
 
+const refundPayment = async (paymentId, { adminId, reason }) => {
+  const payment = await Payment.findById(paymentId).populate("user order");
+  if (!payment) throw new Error("Không tìm thấy thanh toán");
+
+  if (!["zalopay", "momo", "banking"].includes(payment.method)) {
+    throw new Error("Chỉ refund được cho thanh toán online");
+  }
+
+  if (payment.status !== "completed") {
+    throw new Error("Chỉ refund được khi trạng thái completed");
+  }
+
+  let refundResult = { success: true };
+
+  try {
+    switch (payment.method) {
+      case "zalopay":
+        refundResult = await zalopayUtil.refundOrder({
+          app_trans_id: payment.zpTransId,
+          amount: payment.amount,
+          description: reason || "Hoàn tiền đơn hàng",
+        });
+        break;
+
+      case "momo":
+        // refundResult = await MomoUtil.refund({
+        //   requestId: payment.requestId,
+        //   momoTransId: payment.momoTransId,
+        //   amount: payment.amount,
+        //   description: reason || "Hoàn tiền đơn hàng",
+        // });
+        break;
+
+      case "banking":
+        // refundResult = await BankingUtil.refund({
+        //   transactionId: payment.transactionId,
+        //   amount: payment.amount,
+        //   description: reason || "Hoàn tiền đơn hàng",
+        // });
+        break;
+
+      default:
+        throw new Error("Phương thức thanh toán không hỗ trợ refund");
+    }
+
+    if (!refundResult.success) {
+      throw new Error(`Refund thất bại: ${refundResult.data?.return_message || ""}`);
+    }
+
+    payment.status = "refunded";
+    payment.refund = {
+      requested: true,
+      reason,
+      requestedAt: new Date(),
+      processedAt: new Date(),
+      processedBy: adminId,
+    };
+
+    payment.timeline ??= [];
+    payment.timeline.push({
+      status: "refunded",
+      changedBy: adminId,
+      changedAt: new Date(),
+      note: reason || "Hoàn tiền thanh toán",
+    });
+
+    await payment.save();
+
+    logger.info(`[PAYMENT] Payment ${paymentId} refunded successfully`);
+    return payment;
+  } catch (error) {
+    logger.error(`[PAYMENT] Refund failed for ${paymentId}: ${error.message}`);
+    throw error;
+  }
+};
+
+const canCancelOrder = (order) => {
+  // Chỉ hủy nếu đang pending hoặc confirmed
+  return ["pending", "confirmed"].includes(order.status);
+};
 const cancelOrder = async (orderId, userId, note) => {
   try {
-    const order = await Order.findById(orderId);
+    const order = await Order.findById(orderId).populate("user");
     if (!order) {
       const err = new Error("Không tìm thấy đơn hàng");
       err.status = 404;
@@ -551,11 +692,24 @@ const cancelOrder = async (orderId, userId, note) => {
       throw err;
     }
 
-    if (!order.canBeCancelled()) {
+    if (!canCancelOrder(order)) {
       const err = new Error("Chỉ có thể hủy đơn hàng khi đang chờ xác nhận hoặc đã xác nhận");
       err.status = 400;
       throw err;
     }
+    let refundSuccess = false;
+    if (["zalopay", "momo", "banking"].includes(order.payment_method) && order.payment_status === "completed") {
+      const payment = await Payment.findOne({ order: order._id, status: "completed" });
+      if (payment) {
+        try {
+          await refundPayment(payment._id, { adminId: userId, reason: note || "Khách hủy đơn" });
+          refundSuccess = true;
+        } catch (err) {
+          logger.error(`[ORDER] Refund failed for order ${orderId}: ${err.message}`);
+        }
+      }
+    }
+
 
     // Update order status
     order.status = "cancelled";
@@ -569,6 +723,62 @@ const cancelOrder = async (orderId, userId, note) => {
       changedAt: new Date(),
     });
 
+    // Gửi email cho khách hàng
+    const customerEmailHtml = getOrderCancelledEmailTemplate({
+      fullName: order.user.name,
+      orderId: order._id,
+      createdAt: order.created_at,
+      items: order.items,
+      total: order.total,
+      note,
+    });
+    await sendEmail(order.user.email, `Đơn hàng #${order._id} đã bị hủy`, customerEmailHtml);
+
+    const adminEmailHtml = `
+      <div style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+          <div style="background-color: #dc3545; color: #fff; padding: 20px; text-align: center;">
+            <h2 style="margin: 0;">❌ Đơn hàng bị hủy</h2>
+          </div>
+          <div style="padding: 24px; color: #333;">
+            <p>Đơn hàng <strong>#${order._id}</strong> đã bị hủy.</p>
+            <p><strong>Khách hàng:</strong> ${order.user.name} (${order.user.email})</p>
+            <p><strong>Lý do:</strong> ${note || "Không có ghi chú"}</p>
+            <p style="margin-top: 24px; font-size: 14px; color: #555;">Vui lòng kiểm tra hệ thống để cập nhật trạng thái và xử lý nếu cần.</p>
+          </div>
+          <div style="background-color: #f1f1f1; text-align: center; padding: 16px; font-size: 12px; color: #888;">
+            Email tự động - không trả lời
+          </div>
+        </div>
+      </div>
+    `;
+
+    await sendEmail(ADMIN_EMAIL, `Đơn hàng #${order._id} bị hủy`, adminEmailHtml);
+
+    if (["zalopay", "momo", "banking"].includes(order.payment_method)) {
+      const refundEmailHtml = `
+        <div style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;">
+          <div style="max-width: 600px; margin: 0 auto; background-color: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+            <div style="background-color: #28a745; color: #fff; padding: 20px; text-align: center;">
+              <h2 style="margin: 0;">💰 Hoàn tiền đơn hàng</h2>
+            </div>
+            <div style="padding: 24px; color: #333;">
+              <p>Đơn hàng <strong>#${order._id}</strong> của bạn đã bị hủy.</p>
+              <p>Phương thức thanh toán: <strong>${order.payment_method.toUpperCase()}</strong></p>
+              ${refundSuccess
+          ? `<p>Số tiền <strong>${order.total?.toLocaleString()}₫</strong> sẽ được hoàn về tài khoản của bạn trong thời gian sớm nhất.</p>`
+          : `<p>Hiện tại chưa thể hoàn tiền tự động. Vui lòng liên hệ bộ phận hỗ trợ để được hướng dẫn.</p>`
+        }
+              <p>Lý do hủy: ${note || "Không có ghi chú"}</p>
+            </div>
+            <div style="background-color: #f1f1f1; text-align: center; padding: 16px; font-size: 12px; color: #888;">
+              Email tự động - không trả lời
+            </div>
+          </div>
+        </div>
+      `;
+      await sendEmail(order.user.email, `Hoàn tiền cho đơn hàng #${order._id}`, refundEmailHtml);
+    }
     // Restore stock for all items
     const stockUpdates = [];
     for (const item of order.items) {
@@ -814,7 +1024,6 @@ const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isRet
   return order;
 };
 
-const ADMIN_EMAIL = "quanggiang69.dev@gmail.com";
 
 export const clientRequestReturn = async (orderId, userId, note = "") => {
   const order = await Order.findById(orderId).populate("user");
@@ -861,7 +1070,7 @@ export const clientRequestReturn = async (orderId, userId, note = "") => {
     note,
   });
 
-  await sendEmail(order.user.email, `Yêu cầu huỷ đơn hàng của bạn đã được ghi nhận`, userEmailHtml);
+  await sendEmail(order.user.email, `Yêu cầu hoàn hàng của bạn đã được ghi nhận`, userEmailHtml);
 
   return order;
 };
