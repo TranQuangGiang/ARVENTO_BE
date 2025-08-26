@@ -218,17 +218,27 @@ const createOrder = async (orderData) => {
       finalItems.push({
         product_snapshot: {
           _id: productDoc._id.toString(),
-          product_code: productDoc.product_code,
-          name: productDoc.name,
-          slug: productDoc.slug,
-          description: productDoc.description,
-          original_price: parseFloat(productDoc.original_price.toString()),
-          stock: productDoc.stock,
-          images: productDoc.images,
-          tags: productDoc.tags,
-          options: Object.fromEntries(productDoc.options),
-          isActive: productDoc.isActive,
-          is_manual: productDoc.is_manual,
+          product_code: productDoc.product_code || "",
+          name: productDoc.name || "",
+          slug: productDoc.slug || "",
+          description: productDoc.description || "",
+          original_price: productDoc.original_price
+            ? parseFloat(productDoc.original_price.toString())
+            : 0,
+          stock: productDoc.stock ?? 0,
+          images: Array.isArray(productDoc.images)
+            ? productDoc.images.map((img) => ({
+              url: img.url || "",
+              alt: img.alt || "",
+            }))
+            : [],
+          tags: Array.isArray(productDoc.tags) ? productDoc.tags : [],
+          options:
+            productDoc.options && typeof productDoc.options === "object"
+              ? productDoc.options
+              : {},
+          isActive: productDoc.isActive ?? false,
+          is_manual: productDoc.is_manual ?? false,
         },
         product,
         variant: variant._id,
