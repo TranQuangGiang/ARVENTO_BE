@@ -688,7 +688,7 @@ const canCancelOrder = (order) => {
 };
 const cancelOrder = async (orderId, userId, note) => {
   try {
-    const order = await Order.findById(orderId);
+    const order = await Order.findById(orderId).populate("user");
     if (!order) {
       const err = new Error("Không tìm thấy đơn hàng");
       err.status = 404;
@@ -696,7 +696,7 @@ const cancelOrder = async (orderId, userId, note) => {
     }
 
     // Chỉ cho phép hủy nếu là chủ đơn và trạng thái còn pending/confirmed
-    if (order.user.toString() !== userId.toString()) {
+    if (order.user._id.toString() !== userId.toString()) {
       const err = new Error("Bạn không có quyền hủy đơn hàng này");
       err.status = 403;
       throw err;
