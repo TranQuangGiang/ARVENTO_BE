@@ -93,7 +93,7 @@ export const getOrderConfirmationEmailTemplate = ({ fullName, phone, address, or
         <tr>
           <td style="padding: 8px 12px; border: 1px solid #eee;">${item.name}</td>
           <td style="padding: 8px 12px; border: 1px solid #eee; text-align: center;">${item.quantity}</td>
-          <td style="padding: 8px 12px; border: 1px solid #eee; text-align: right;">${item.price?.toLocaleString?.() || "0"}₫</td>
+          <td style="padding: 8px 12px; border: 1px solid #eee; text-align: right;">${item.total_price?.toLocaleString?.() || "0"}₫</td>
         </tr>
       `
     )

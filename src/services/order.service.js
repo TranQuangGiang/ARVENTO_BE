@@ -945,6 +945,22 @@ const allowedTransitions = {
   completed: [],
   cancelled: [],
 };
+const getLabelNewStatus = (status) => {
+  const labels = {
+    pending: "Chờ xử lý",
+    confirmed: "Đã xác nhận",
+    processing: "Đang xử lý",
+    shipping: "Đang giao hàng",
+    delivered: "Đã giao",
+    completed: "Hoàn tất",
+    cancelled: "Đã hủy",
+    returning: "Đang trả hàng",
+    returned: "Đã trả hàng",
+    refunded: "Đã hoàn tiền",
+  };
+  return labels[status] || status;
+};
+
 const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isReturnRequested = undefined, userRole = Roles.ADMIN, currentUserId = null) => {
   const order = await Order.findById(orderId).populate("user");
   if (!order) throw new Error("Không tìm thấy đơn hàng");
@@ -1022,7 +1038,7 @@ const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isRet
           note,
           changedAt: new Date(),
         });
-        subject = `🔔 Đơn hàng #${order._id} đã chuyển sang trạng thái "${newStatus}"`;
+        subject = `🔔 Đơn hàng #${order._id} đã chuyển sang trạng thái "${getLabelNewStatus(newStatus)}"`;
       }
 
       await sendEmail(order.user.email, subject, html);

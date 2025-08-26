@@ -51,8 +51,8 @@ const createOrder = async (req, res) => {
     const paymentMethodLabels = {
       cod: "Thanh toán khi nhận hàng",
       momo: "Thanh toán qua MoMo",
-      vnpay: "Thanh toán qua VNPAY",
-      bank_transfer: "Chuyển khoản ngân hàng",
+      zalopay: "Thanh toán qua ZaloPay",
+      banking: "Chuyển khoản ngân hàng",
     };
     const html = getOrderConfirmationEmailTemplate({
       fullName: req.user.name,
