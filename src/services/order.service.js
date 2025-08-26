@@ -688,7 +688,7 @@ const canCancelOrder = (order) => {
 };
 const cancelOrder = async (orderId, userId, note) => {
   try {
-    const order = await Order.findById(orderId).populate("user");
+    const order = await Order.findById(orderId);
     if (!order) {
       const err = new Error("Không tìm thấy đơn hàng");
       err.status = 404;
