@@ -1034,7 +1034,7 @@ const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isRet
         html = getOrderStatusChangedEmailTemplate({
           fullName: order.user.fullName || "Khách hàng",
           orderId: order._id,
-          newStatus,
+          newStatus: getLabelNewStatus(newStatus),
           note,
           changedAt: new Date(),
         });

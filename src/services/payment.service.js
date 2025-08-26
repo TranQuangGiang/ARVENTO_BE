@@ -108,35 +108,23 @@ const createZaloPayPayment = async ({ order, user, amount, note }) => {
 };
 
 // Xác nhận thanh toán ZaloPay từ callback
-const confirmZaloPayPayment = async (callbackData) => {
+export const confirmZaloPayPayment = async (callbackData) => {
   try {
-    // Verify callback signature
     const isValid = zaloPayUtil.verifyCallback(callbackData);
-    if (!isValid) {
-      throw new Error("Invalid callback signature");
-    }
+    if (!isValid) throw new Error("Invalid callback signature");
 
     const { data } = callbackData;
     const embedData = JSON.parse(data.embed_data || "{}");
     const paymentId = embedData.orderId;
+    if (!paymentId) throw new Error("Payment ID không tồn tại");
 
-    if (!paymentId) {
-      throw new Error("Payment ID not found in callback data");
-    }
-
-    // Tìm payment và validate
     const payment = await Payment.findById(paymentId);
-    if (!payment) {
-      throw new Error("Payment not found");
-    }
-
-    if (payment.method !== "zalopay") {
-      throw new Error("Invalid payment method");
-    }
+    if (!payment) throw new Error("Payment không tồn tại");
+    if (payment.method !== "zalopay") throw new Error("Payment method không hợp lệ");
 
     const isSuccess = String(data.return_code) === "1";
 
-    // Update Payment
+    // Cập nhật Payment
     const updatedPayment = await Payment.findByIdAndUpdate(
       paymentId,
       {
@@ -155,7 +143,7 @@ const confirmZaloPayPayment = async (callbackData) => {
       { new: true }
     );
 
-    // Update Order
+    // Cập nhật Order
     await Order.findByIdAndUpdate(
       payment.order,
       {
@@ -164,19 +152,16 @@ const confirmZaloPayPayment = async (callbackData) => {
           timeline: {
             status: isSuccess ? "completed" : "failed",
             changedAt: new Date(),
-            note: isSuccess
-              ? "Thanh toán ZaloPay thành công"
-              : "Thanh toán ZaloPay thất bại",
+            note: isSuccess ? "Thanh toán ZaloPay thành công" : "Thanh toán ZaloPay thất bại",
           },
         },
-      },
-      { new: true }
+      }
     );
 
     return updatedPayment;
-  } catch (error) {
-    logger.error(`[ZALOPAY] Callback thất bại: ${error.message}`);
-    throw error;
+  } catch (err) {
+    logger.error(`[ZALOPAY] Callback thất bại: ${err.message}`);
+    throw err;
   }
 };
 

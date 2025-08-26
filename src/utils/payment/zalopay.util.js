@@ -64,7 +64,7 @@ class ZaloPayUtil {
     const embed_data = JSON.stringify({
       orderId,
       userInfo,
-      redirecturl: "http://localhost:5173/thanhcong",
+      redirecturl: `http://localhost:5173/thanhcong?orderId=${orderId}`
     });
 
     const order = {
