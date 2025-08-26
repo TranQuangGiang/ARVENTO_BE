@@ -58,14 +58,16 @@ class ZaloPayUtil {
    * Tạo order với ZaloPay
    */
   async createOrder(orderData) {
-    const { amount, description, orderId, userInfo = {} } = orderData;
+    const { amount, description, orderId, paymentId, userInfo = {} } = orderData;
 
     const app_trans_id = this.generateAppTransId();
     const embed_data = JSON.stringify({
       orderId,
+      paymentId,
       userInfo,
-      redirecturl: `http://localhost:5173/thanhcong?orderId=${orderId}`
+      redirecturl: `http://localhost:5173/thanhcong?orderId=${orderId}`,
     });
+
 
     const order = {
       app_id: this.config.app_id,

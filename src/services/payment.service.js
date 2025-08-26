@@ -68,7 +68,8 @@ const createZaloPayPayment = async ({ order, user, amount, note }) => {
     const zaloPayOrder = await zaloPayUtil.createOrder({
       amount,
       description: `Thanh toán đơn hàng #${orderInfo._id}`,
-      orderId: payment._id.toString(),
+      orderId: orderInfo._id.toString(),
+      paymentId: payment._id.toString(),
       userInfo: {
         userId: user.toString(),
         userName: orderInfo.user.name || "Customer",
