@@ -363,4 +363,5 @@ router.get('/admin/reviews/dashboard',authMiddleware.authenticateToken, authMidd
  */
 
 router.get('/:id', reviewController.getReviewDetail);
+router.get('/order/:orderId', authMiddleware.authenticateToken, reviewController.getReviewsByOrder);
 export default router;

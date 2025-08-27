@@ -145,3 +145,19 @@ export const getReviewDetail = async (req, res) => {
     return response.errorResponse(res, null, 'Internal server error');
   }
 };
+
+export const getReviewsByOrder = async (req, res, next) => {
+  try {
+    const { orderId } = req.params;
+
+    const reviews = await reviewService.getReviewsByOrder(orderId);
+
+    if (!reviews || reviews.length === 0) {
+      return response.notFoundResponse(res, null, "Không có đánh giá nào cho đơn hàng này");
+    }
+
+    return response.successResponse(res, reviews, "Lấy danh sách đánh giá theo orderId thành công");
+  } catch (error) {
+    return response.errorResponse(res, error.message);
+  }
+};

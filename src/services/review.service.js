@@ -234,6 +234,12 @@ const getReviewById = async (id) => {
 
   return review;
 };
+const getReviewsByOrder = async (orderId) => {
+  return await Review.find({ order_id: orderId })
+    .populate('user_id', 'name email')
+    .populate('product_id', 'name')
+    .lean();
+};
 
 
 export default {
@@ -250,4 +256,5 @@ export default {
   getStatsByProduct,
   getDashboardStats,
   getReviewById,
+  getReviewsByOrder,
 };
