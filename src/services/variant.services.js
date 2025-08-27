@@ -22,8 +22,7 @@ const generateVariants = async (productId, input) => {
   // ✅ Base price
   const basePrice = parseFloat(product.original_price?.toString() || '0');
 
-
-  // ✅ Lấy options riêng đã chọn của sản phẩm
+  // ✅ Lấy options gốc từ product
   const validSizes = product.options?.get('size') || [];
   const validColorsRaw = product.options?.get('color') || [];
 
@@ -31,89 +30,69 @@ const generateVariants = async (productId, input) => {
     .filter(c => c && typeof c.name === 'string')
     .map(c => c.name.toLowerCase());
 
-  console.log("✅ validColorsRaw:", validColorsRaw);
+  // ==============================
+  // 🚀 Chuẩn hóa input
+  // ==============================
 
-  // ✅ Chuẩn hoá input
   // Check size
-  const rawInputSizes = (inputOptions.size || []);
-  const emptySizes = rawInputSizes.filter(s => !s || !s.trim());
-  if (emptySizes.length > 0) {
+  const rawInputSizes = inputOptions.size || [];
+  if (rawInputSizes.some(s => !s || !s.trim())) {
     throw new Error(`Giá trị size không hợp lệ: trống hoặc rỗng`);
   }
-  const inputSizes = rawInputSizes
-    .map(s => s.trim().toUpperCase());
-  const duplicateSizes = inputSizes.filter(
-    (s, i, arr) => arr.indexOf(s) !== i
-  );
+  const inputSizes = rawInputSizes.map(s => s.trim().toUpperCase());
+  const duplicateSizes = inputSizes.filter((s, i, arr) => arr.indexOf(s) !== i);
   if (duplicateSizes.length > 0) {
     throw new Error(`Size bị trùng lặp: ${[...new Set(duplicateSizes)].join(', ')}`);
   }
+
   // Check color
-  const rawInputColors = (inputOptions.color || []);
-  const emptyColors = rawInputColors.filter(
-    c => !c || typeof c !== 'object' || !c.name || !c.name.trim()
-  );
-  if (emptyColors.length > 0) {
+  const rawInputColors = inputOptions.color || [];
+  if (rawInputColors.some(c => !c || typeof c !== 'object' || !c.name?.trim())) {
     throw new Error(`Color không hợp lệ: có giá trị rỗng hoặc thiếu name`);
   }
-  const inputColors = rawInputColors
-    .map(c => c.name.toLowerCase());
-  const duplicateColors = inputColors.filter(
-    (c, i, arr) => arr.indexOf(c) !== i
-  );
+  const inputColors = rawInputColors.map(c => c.name.toLowerCase());
+  const duplicateColors = inputColors.filter((c, i, arr) => arr.indexOf(c) !== i);
   if (duplicateColors.length > 0) {
     throw new Error(`Color bị trùng lặp: ${[...new Set(duplicateColors)].join(', ')}`);
   }
-  // ✅ Validate size
+
+  // Validate size
   const invalidSizes = inputSizes.filter(s => !validSizes.includes(s));
   if (invalidSizes.length > 0) {
     throw new Error(`Options không hợp lệ: Size: ${invalidSizes.join(', ')}`);
   }
 
-  // ✅ Validate color
-  const invalidColors = inputColors.filter(
-    c => !validColors.includes(c)
-  );
+  // Validate color
+  const invalidColors = inputColors.filter(c => !validColors.includes(c));
   if (invalidColors.length > 0) {
-    throw new Error(
-      `Options không hợp lệ: Color: ${invalidColors.join(', ')}`
-    );
+    throw new Error(`Options không hợp lệ: Color: ${invalidColors.join(', ')}`);
   }
 
-  // ✅ Nếu overwrite → xóa toàn bộ variant cũ
+  // ==============================
+  // 🚀 Xóa cũ nếu overwrite
+  // ==============================
   if (overwrite) {
     await Variant.deleteMany({ product_id: productId });
   }
 
-  // ✅ Lấy variant đã tồn tại
-  const existingVariants = overwrite
-    ? []
-    : await Variant.find({ product_id: productId });
+  const existingVariants = overwrite ? [] : await Variant.find({ product_id: productId });
 
   const existingKeys = new Set(
     existingVariants.map(v => {
-      const sizeKey = typeof v.size === 'string' ? v.size.toLowerCase() : '';
-      const colorKey =
-        typeof v.color === 'string'
-          ? v.color.toLowerCase()
-          : typeof v.color === 'object' && typeof v.color.name === 'string'
-            ? v.color.name.toLowerCase()
-            : '';
+      const sizeKey = v.size?.toLowerCase() || '';
+      const colorKey = typeof v.color === 'object' ? v.color.name.toLowerCase() : '';
       return `${colorKey}-${sizeKey}`;
     })
   );
 
-  // ✅ Tạo combinations: COLOR → SIZE
-  const sortedColors = validColorsRaw.filter(c =>
-    inputColors.includes(c.name.toLowerCase())
-  );
-  // Sort size từ nhỏ đến lớn
+  // ==============================
+  // 🚀 Sinh combinations (COLOR → SIZE)
+  // ==============================
+  const sortedColors = validColorsRaw.filter(c => inputColors.includes(c.name.toLowerCase()));
   const sortedSizes = [...new Set(inputSizes)].sort((a, b) => {
     const numA = parseInt(a, 10);
     const numB = parseInt(b, 10);
-    if (!isNaN(numA) && !isNaN(numB)) {
-      return numA - numB;
-    }
+    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
     return a.localeCompare(b);
   });
 
@@ -122,18 +101,20 @@ const generateVariants = async (productId, input) => {
     for (const size of sortedSizes) {
       const key = `${color.name.toLowerCase()}-${size.toLowerCase()}`;
       if (!existingKeys.has(key)) {
-        combinations.push({
-          color,
-          size
-        });
+        combinations.push({ color, size });
       }
     }
   }
 
   if (combinations.length === 0) return [];
 
+  // ==============================
+  // 🚀 Tạo variant với ảnh map theo color
+  // ==============================
   const variants = combinations.map(({ color, size }) => {
-    const img = images[color.name] || {
+    // fix: chuẩn hóa key ảnh theo lowercase để không bị lệch
+    const imgKey = color.name.toLowerCase();
+    const img = images[imgKey] || {
       url: '',
       alt: `${color.name} ${size || ''}`.trim()
     };
