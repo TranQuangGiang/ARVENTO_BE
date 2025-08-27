@@ -13,6 +13,7 @@ const objectId = (value, helpers) => {
 //  Validation cho tạo đánh giá
 export const createReviewSchema = Joi.object({
   product_id: Joi.string().required().custom(objectId),
+  order_id: Joi.string().required().custom(objectId), // 🔥 bắt buộc
   rating: Joi.number().min(1).max(5).required(),
   comment: Joi.string().allow('', null),
   images: Joi.array().items(Joi.string().uri()).max(5).optional()

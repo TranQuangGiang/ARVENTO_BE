@@ -11,6 +11,12 @@ const reviewSchema = new mongoose.Schema({
     ref: 'Product',
     required: true
   },
+  order_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Order',
+    required: true, // bắt buộc phải có đơn hàng
+    index: true
+  },
   rating: {
     type: Number,
     required: true,
@@ -50,5 +56,6 @@ reviewSchema.pre('save', function (next) {
   this.updated_at = new Date();
   next();
 });
-
+// Không cho review trùng sản phẩm trong cùng một đơn hàng
+reviewSchema.index({ user_id: 1, product_id: 1, order_id: 1 }, { unique: true });
 export default mongoose.model('Review', reviewSchema);
