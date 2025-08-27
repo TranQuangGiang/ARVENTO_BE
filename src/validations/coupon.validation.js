@@ -19,8 +19,9 @@ export const createCouponValidation = Joi.object({
   // Giới hạn sử dụng
   usageLimit: Joi.number().positive().allow(null),
   perUserLimit: Joi.number().positive().default(1),
-  startDate: Joi.date().default(() => new Date()),
-  expiryDate: Joi.date().greater(Joi.ref('startDate')).allow(null),
+startDate: Joi.date().min('now').required(),
+ expiryDate: Joi.date().greater(Joi.ref('startDate')).required(),
+
   
   // Điều kiện áp dụng
   minSpend: Joi.number().positive().default(0),
@@ -70,7 +71,6 @@ export const updateCouponValidation = Joi.object({
   code: Joi.string().uppercase().trim().pattern(/^[A-Z0-9]+$/),
 
   discountType: Joi.string().valid('percentage', 'fixed_amount'),
-  // Khi update, có thể chỉ gửi value hoặc chỉ gửi type, nên tách rule ở .custom bên dưới
   discountValue: Joi.number().min(0.01),
 
   description: Joi.string().max(500),
@@ -78,13 +78,19 @@ export const updateCouponValidation = Joi.object({
   usageLimit: Joi.number().integer().min(1).allow(null),
   perUserLimit: Joi.number().integer().min(1),
 
-  startDate: Joi.date(),
+  // startDate >= hiện tại
+  startDate: Joi.date().min('now'),
+
+  // expiryDate > startDate nếu có cả 2
   expiryDate: Joi.date()
     .allow(null)
     .custom((value, helpers) => {
       const { startDate } = helpers.state.ancestors[0];
       if (value && startDate && new Date(value) <= new Date(startDate)) {
         return helpers.message('expiryDate phải sau startDate');
+      }
+      if (value && new Date(value) < new Date()) {
+        return helpers.message('expiryDate không được ở quá khứ');
       }
       return value;
     }),
@@ -105,19 +111,19 @@ export const updateCouponValidation = Joi.object({
   isActive: Joi.boolean(),
 })
 .custom((value, helpers) => {
-  // percentage <= 100 nếu biết được type trong payload
+  // percentage <= 100
   if (value.discountType === 'percentage' && value.discountValue !== undefined && value.discountValue > 100) {
     return helpers.message('Giảm giá phần trăm không được lớn hơn 100%');
   }
 
-  // maxSpend >= minSpend (nếu cả 2 xuất hiện trong payload)
+  // maxSpend >= minSpend
   if (value.maxSpend !== undefined && value.maxSpend !== null && value.minSpend !== undefined) {
     if (value.maxSpend < value.minSpend) {
       return helpers.message('maxSpend phải lớn hơn hoặc bằng minSpend');
     }
   }
 
-  // perUserLimit <= usageLimit (khi cả 2 có trong payload và usageLimit != null)
+  // perUserLimit <= usageLimit
   if (value.usageLimit !== undefined && value.usageLimit !== null && value.perUserLimit !== undefined) {
     if (value.perUserLimit > value.usageLimit) {
       return helpers.message('perUserLimit không được lớn hơn usageLimit');
@@ -135,7 +141,8 @@ export const updateCouponValidation = Joi.object({
   }
 
   return value;
-}).min(1); // Ít nhất 1 trường phải được cập nhật
+}).min(1); // Ít nhất 1 field phải có để update
+
 
 // Validate khi kiểm tra coupon
 export const validateCouponValidation = Joi.object({
