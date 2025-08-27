@@ -9,27 +9,28 @@ function containsBadWords(content) {
     content?.toLowerCase().includes(word.toLowerCase())
   );
 }
-
 const create = async (userId, body) => {
   const productId = new mongoose.Types.ObjectId(body.product_id);
 
-  // Kiểm tra đã từng đánh giá sản phẩm chưa
-  const existed = await Review.findOne({
-    user_id: userId,
-    product_id: productId,
-  });
-  if (existed) {
-    throw new Error('Bạn đã đánh giá sản phẩm này rồi.');
-  }
-
-  // Kiểm tra user đã mua sản phẩm đó chưa
-  const hasPurchased = await Order.exists({
+  // Đếm số đơn hàng đã mua chứa sản phẩm này
+  const purchaseCount = await Order.countDocuments({
     user: userId,
     status: 'completed',
     'items.product': productId,
   });
-  if (!hasPurchased) {
+
+  if (purchaseCount === 0) {
     throw new Error('Bạn chỉ có thể đánh giá sản phẩm sau khi mua và nhận hàng.');
+  }
+
+  // Đếm số đánh giá đã viết
+  const reviewCount = await Review.countDocuments({
+    user_id: userId,
+    product_id: productId,
+  });
+
+  if (reviewCount >= purchaseCount) {
+    throw new Error(`Bạn đã dùng hết lượt đánh giá cho sản phẩm này (đã mua ${purchaseCount} lần, đã đánh giá ${reviewCount} lần).`);
   }
 
   // Check blacklist đúng field
