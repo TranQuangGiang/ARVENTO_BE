@@ -7,6 +7,7 @@ import Roles from "../constants/role.enum.js";
 import { createOrderSchema, createOrderFromCartSchema, adminUpdateOrderStatusSchema, getOrdersQuerySchema } from "../validations/order.validation.js";
 import { promises as fs } from 'fs';
 import mongoose from "mongoose";
+import orderModel from "../models/order.model.js";
 
 
 const uploadDir = 'uploads/returns/';
@@ -35,6 +36,33 @@ const validateOrderId = (req, res, next) => {
   }
   next();
 };
+
+async function canUpdateOrderStatus(user, newStatus, orderId) {
+  const { role } = user;
+
+  if (role === Roles.ADMIN) return true;
+
+  // Nếu là USER thì kiểm tra thêm
+  if (role === Roles.USER) {
+    // User có thể completed đơn
+    if (newStatus === "completed") return true;
+
+    // Lấy order để check điều kiện hủy
+    const order = await orderModel.findById(orderId);
+    if (!order) return false;
+
+    // User có thể cancel nếu: momo/zalopay + pending
+    if (
+      newStatus === "cancelled" &&
+      ["zalopay", "momo"].includes(order.payment_method) &&
+      order.payment_status === "pending"
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 // Multer error handling middleware
 const handleMulterError = (err, req, res, next) => {
@@ -727,16 +755,19 @@ router.patch(
   "/:id/status",
   authMiddleware.authenticateToken,
   async (req, res, next) => {
-    const role = req.user.role;
-    const { status: newStatus } = req.body;
+    try {
+      const orderId = req.params.id;
+      const { status: newStatus } = req.body;
 
-    if (role === Roles.ADMIN) return next();
+      const allowed = await canUpdateOrderStatus(req.user, newStatus, orderId);
+      if (!allowed) {
+        return res.status(403).json({ message: "Bạn không có quyền cập nhật trạng thái đơn hàng" });
+      }
 
-    if (role === Roles.USER && newStatus === "completed") {
-      return next();
+      next();
+    } catch (err) {
+      next(err);
     }
-
-    return res.status(403).json({ message: "Bạn không có quyền cập nhật trạng thái đơn hàng" });
   },
   validate({ body: adminUpdateOrderStatusSchema }),
   orderController.updateOrderStatus
