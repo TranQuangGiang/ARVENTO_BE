@@ -1012,11 +1012,14 @@ const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isRet
   }
 
   if (userRole === Roles.USER) {
-    if (!(currentStatus === "delivered" && newStatus === "completed")) {
+    if (!((currentStatus === "delivered" && newStatus === "completed") || newStatus === "cancelled")) {
       throw new Error("Bạn không có quyền thực hiện hành động này");
     }
     if (!order.user.equals(currentUserId)) {
       throw new Error("Bạn không có quyền thao tác đơn hàng này");
+    }
+    if (newStatus === "cancelled" && order.payment_status !== "completed") {
+      order.payment_status = "cancelled";
     }
   }
 
