@@ -151,6 +151,9 @@ const createOrder = async (orderData) => {
     if (!userDoc) {
       throw new Error("Không tìm thấy user");
     }
+    if (!userDoc.verified) {
+      throw new Error("Tài khoản chưa được xác thực");
+    }
     const userSnapshot = {
       _id: userDoc._id.toString(),
       name: userDoc.name || "",

@@ -288,6 +288,9 @@ orderSchema.virtual("items_count").get(function () {
   return this.items.length;
 });
 
+orderSchema.virtual("createdAt").get(function () {
+  return this.created_at;
+});
 orderSchema.virtual("total_quantity").get(function () {
   return this.items.reduce((total, item) => total + item.quantity, 0);
 });
