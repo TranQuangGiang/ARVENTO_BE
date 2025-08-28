@@ -107,23 +107,48 @@ const createZaloPayPayment = async ({ order, user, amount, note }) => {
     throw error;
   }
 };
-
 // Xác nhận thanh toán ZaloPay từ callback
 export const confirmZaloPayPayment = async (callbackData) => {
   try {
+    logger.info(`[ZALOPAY] Nhận callback: ${JSON.stringify(callbackData)}`);
+
+    // Verify chữ ký
     const isValid = zaloPayUtil.verifyCallback(callbackData);
-    if (!isValid) throw new Error("Invalid callback signature");
+    if (!isValid) {
+      logger.warn("[ZALOPAY] Callback signature không hợp lệ");
+      throw new Error("Invalid callback signature");
+    }
+    logger.info("[ZALOPAY] Callback signature hợp lệ");
 
     const { data } = callbackData;
-    const embedData = JSON.parse(data.embed_data || "{}");
-    const paymentId = embedData.paymentId;
-    if (!paymentId) throw new Error("Payment ID không tồn tại");
+    logger.debug(`[ZALOPAY] Callback data: ${JSON.stringify(data)}`);
 
+    // Parse embed_data
+    const embedData = JSON.parse(data.embed_data || "{}");
+    logger.debug(`[ZALOPAY] Embed data: ${JSON.stringify(embedData)}`);
+
+    const paymentId = embedData.paymentId;
+    if (!paymentId) {
+      logger.error("[ZALOPAY] Payment ID không tồn tại trong embed_data");
+      throw new Error("Payment ID không tồn tại");
+    }
+    logger.info(`[ZALOPAY] Payment ID: ${paymentId}`);
+
+    // Tìm Payment
     const payment = await Payment.findById(paymentId);
-    if (!payment) throw new Error("Payment không tồn tại");
-    if (payment.method !== "zalopay") throw new Error("Payment method không hợp lệ");
+    if (!payment) {
+      logger.error(`[ZALOPAY] Payment ${paymentId} không tồn tại`);
+      throw new Error("Payment không tồn tại");
+    }
+    logger.info(`[ZALOPAY] Tìm thấy Payment ${paymentId}, method: ${payment.method}`);
+
+    if (payment.method !== "zalopay") {
+      logger.error(`[ZALOPAY] Payment ${paymentId} method không hợp lệ: ${payment.method}`);
+      throw new Error("Payment method không hợp lệ");
+    }
 
     const isSuccess = String(data.return_code) === "1";
+    logger.info(`[ZALOPAY] Kết quả thanh toán: ${isSuccess ? "THÀNH CÔNG" : "THẤT BẠI"}`);
 
     // Cập nhật Payment
     const updatedPayment = await Payment.findByIdAndUpdate(
@@ -143,6 +168,7 @@ export const confirmZaloPayPayment = async (callbackData) => {
       },
       { new: true }
     );
+    logger.info(`[ZALOPAY] Payment ${paymentId} đã được cập nhật. Status: ${updatedPayment.status}`);
 
     // Cập nhật Order
     await Order.findByIdAndUpdate(
@@ -158,13 +184,15 @@ export const confirmZaloPayPayment = async (callbackData) => {
         },
       }
     );
+    logger.info(`[ZALOPAY] Order ${payment.order} đã được cập nhật payment_status: ${isSuccess ? "completed" : "failed"}`);
 
     return updatedPayment;
   } catch (err) {
-    logger.error(`[ZALOPAY] Callback thất bại: ${err.message}`);
+    logger.error(`[ZALOPAY] Callback thất bại: ${err.stack || err.message}`);
     throw err;
   }
 };
+
 
 // Query ZaloPay payment status
 const queryZaloPayStatus = async (paymentId) => {

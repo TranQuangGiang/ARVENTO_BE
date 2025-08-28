@@ -84,22 +84,7 @@ const orderItemSchema = new mongoose.Schema(
       is_manual: Boolean,
     },
 
-    user_snapshot: {
-      _id: String,
-      name: String,
-      email: String,
-      phone: String,
-      verified: Boolean,
-      role: {
-        type: String,
-        enum: ["user", "admin"],
-      },
-      status: {
-        type: String,
-        enum: ["active", "blocked", "banned"],
-      },
-      total_spending: Number,
-    },
+
 
     selected_variant: {
       type: OrderVariantSchema,
@@ -158,6 +143,22 @@ const orderSchema = new mongoose.Schema(
       type: mongoose.Types.Decimal128,
       required: [true, "Tổng phụ là bắt buộc"],
       min: [0, "Tổng phụ không được âm"],
+    },
+    user_snapshot: {
+      _id: String,
+      name: String,
+      email: String,
+      phone: String,
+      verified: Boolean,
+      role: {
+        type: String,
+        enum: ["user", "admin"],
+      },
+      status: {
+        type: String,
+        enum: ["active", "blocked", "banned"],
+      },
+      total_spending: Number,
     },
     applied_coupon: {
       code: {

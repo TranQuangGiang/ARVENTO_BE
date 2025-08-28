@@ -163,6 +163,7 @@ const createOrder = async (orderData) => {
       total_spending: userDoc?.total_spending ?? 0,
     };
 
+
     // Lấy snapshot địa chỉ giao hàng
     let shippingAddressSnapshot = null;
     if (shipping_address) {
