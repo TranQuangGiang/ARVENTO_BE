@@ -932,12 +932,13 @@ export const getAllOrders = async (filters = {}, options = {}) => {
 
   const total = await Order.countDocuments(query);
 
-  if (!orders.user && orders.user_snapshot) {
-    orders.user = orders.user_snapshot;
-  }
+  const fixedOrders = orders.map(order => ({
+    ...order,
+    user: order.user || order.user_snapshot,
+  }));
 
   return {
-    orders,
+    orders: fixedOrders,
     total,
     page,
     limit,
