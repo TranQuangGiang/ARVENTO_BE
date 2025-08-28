@@ -84,6 +84,28 @@ const orderItemSchema = new mongoose.Schema(
       is_manual: Boolean,
     },
 
+    user_snapshot: {
+      _id: String,
+      name: String,
+      email: String,
+      phone: String,
+      verified: Boolean,
+      role: {
+        type: String,
+        enum: ["user", "admin"],
+      },
+      current_tier: {
+        _id: String,
+        name: String,
+        benefits: [String],
+      },
+      status: {
+        type: String,
+        enum: ["active", "blocked", "banned"],
+      },
+      total_spending: Number,
+    },
+
     selected_variant: {
       type: OrderVariantSchema,
       required: [true, "Variant sản phẩm là bắt buộc"],

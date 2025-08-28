@@ -1,5 +1,5 @@
 import Order from "../models/order.model.js";
-import { addressModel, couponModel, Product } from "../models/index.js";
+import { addressModel, couponModel, Product, userModel } from "../models/index.js";
 import Variant from "../models/variant.model.js";
 import cartService from "./cart.service.js";
 import logger from "../config/logger.config.js";
@@ -147,7 +147,28 @@ const createOrder = async (orderData) => {
     const { user, items, applied_coupon, shipping_address, billing_address, payment_method = "cod", note, address, shipping_fee = 0 } = orderData;
 
     logger.info(`[ORDER] Creating order for user: ${user}, items: ${items.length}`);
+    const userDoc = await userModel.findById(user).populate("current_tier");
+    if (!userDoc) {
+      throw new Error("Không tìm thấy user");
+    }
 
+    const userSnapshot = {
+      _id: userDoc._id.toString(),
+      name: userDoc.name,
+      email: userDoc.email,
+      phone: userDoc.phone || "",
+      verified: userDoc.verified,
+      role: userDoc.role,
+      current_tier: userDoc.current_tier
+        ? {
+          _id: userDoc.current_tier._id.toString(),
+          name: userDoc.current_tier.name,
+          benefits: userDoc.current_tier.benefits || [],
+        }
+        : null,
+      status: userDoc.status,
+      total_spending: userDoc.total_spending || 0,
+    };
     // Lấy snapshot địa chỉ giao hàng
     let shippingAddressSnapshot = null;
     if (shipping_address) {
@@ -312,6 +333,7 @@ const createOrder = async (orderData) => {
     const orderPayload = {
       user,
       items: finalItems,
+      user_snapshot: userSnapshot,
       subtotal: mongoose.Types.Decimal128.fromString(rawSubtotal.toFixed(2)),
       shipping_fee: mongoose.Types.Decimal128.fromString(shipping_fee.toFixed(2)),
       total: mongoose.Types.Decimal128.fromString(total.toFixed(2)),
@@ -551,16 +573,24 @@ const getMyOrders = async (user, filters = {}) => {
       .limit(limit)
       .populate("items.product", "name images slug")
       .populate("shipping_address")
-      .populate("billing_address");
+      .populate("billing_address")
+      .populate("user", "name email phone");
 
     const total = await Order.countDocuments(query);
+
     const transformedOrders = orders.map(order => {
+      // fallback product từ snapshot
       order.items = order.items.map(item => {
         if (!item.product && item.product_snapshot) {
           item.product = item.product_snapshot;
         }
         return item;
       });
+
+      if (!order.user && order.user_snapshot) {
+        order.user = order.user_snapshot;
+      }
+
       return order;
     });
 
@@ -599,12 +629,17 @@ const getOrderDetail = async (id, userId = null) => {
       return item;
     });
 
+    if (!order.user && order.user_snapshot) {
+      order.user = order.user_snapshot;
+    }
+
     return order;
   } catch (error) {
     logger.error(`[ORDER] Error getting order detail: ${error.message}`);
     throw error;
   }
 };
+
 
 const refundPayment = async (paymentId, { adminId, reason }) => {
   const payment = await Payment.findById(paymentId).populate("user order");
