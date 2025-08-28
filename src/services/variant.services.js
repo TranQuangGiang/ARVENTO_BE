@@ -21,10 +21,12 @@ const generateVariants = async (productId, input) => {
 
   // ✅ Base price
   const basePrice = parseFloat(product.original_price?.toString() || '0');
-
+// const normalize = (val) => String(val).trim();
   // ✅ Lấy options gốc từ product
-  const validSizes = product.options?.get('size') || [];
+  // const validSizes = Array.isArray(product.options?.size) ? product.options.size : [];
+  const validSizes = product.options?.get('size') || []; 
   const validColorsRaw = product.options?.get('color') || [];
+
 
   const validColors = validColorsRaw
     .filter(c => c && typeof c.name === 'string')
@@ -39,7 +41,8 @@ const generateVariants = async (productId, input) => {
   if (rawInputSizes.some(s => !s || !s.trim())) {
     throw new Error(`Giá trị size không hợp lệ: trống hoặc rỗng`);
   }
-  const inputSizes = rawInputSizes.map(s => s.trim().toUpperCase());
+  // const inputSizes = rawInputSizes.map(s => s.trim().toUpperCase());
+const inputSizes = rawInputSizes .map(s => s.trim().toUpperCase());
   const duplicateSizes = inputSizes.filter((s, i, arr) => arr.indexOf(s) !== i);
   if (duplicateSizes.length > 0) {
     throw new Error(`Size bị trùng lặp: ${[...new Set(duplicateSizes)].join(', ')}`);
@@ -57,10 +60,10 @@ const generateVariants = async (productId, input) => {
   }
 
   // Validate size
-  const invalidSizes = inputSizes.filter(s => !validSizes.includes(s));
-  if (invalidSizes.length > 0) {
-    throw new Error(`Options không hợp lệ: Size: ${invalidSizes.join(', ')}`);
-  }
+const invalidSizes = inputSizes.filter(s => !validSizes.includes(s));
+if (invalidSizes.length > 0) {
+  throw new Error(`Options không hợp lệ: Size: ${invalidSizes.join(', ')}`);
+}
 
   // Validate color
   const invalidColors = inputColors.filter(c => !validColors.includes(c));
@@ -88,10 +91,15 @@ const generateVariants = async (productId, input) => {
   // ==============================
   // 🚀 Sinh combinations (COLOR → SIZE)
   // ==============================
-  const colorMap = new Map(validColorsRaw.map(c => [c.name.toLowerCase(), c]));
+ // Map nhanh color từ product để validate
+const colorMap = new Map(
+  validColorsRaw.map(c => [c.name.toLowerCase(), c])
+);
+
+// Lấy theo đúng thứ tự inputColors
 const sortedColors = inputColors
-  .map(name => colorMap.get(name))  // đảm bảo theo thứ tự input
-  .filter(Boolean);
+  .map(name => colorMap.get(name)) // giữ nguyên thứ tự input
+  .filter(Boolean); // loại bỏ màu không hợp lệ
   const sortedSizes = [...new Set(inputSizes)].sort((a, b) => {
     const numA = parseInt(a, 10);
     const numB = parseInt(b, 10);
