@@ -147,28 +147,22 @@ const createOrder = async (orderData) => {
     const { user, items, applied_coupon, shipping_address, billing_address, payment_method = "cod", note, address, shipping_fee = 0 } = orderData;
 
     logger.info(`[ORDER] Creating order for user: ${user}, items: ${items.length}`);
-    const userDoc = await userModel.findById(user).populate("current_tier");
+    const userDoc = await userModel.findById(user);
     if (!userDoc) {
       throw new Error("Không tìm thấy user");
     }
 
     const userSnapshot = {
-      _id: userDoc._id.toString(),
-      name: userDoc.name,
-      email: userDoc.email,
-      phone: userDoc.phone || "",
-      verified: userDoc.verified,
-      role: userDoc.role,
-      current_tier: userDoc.current_tier
-        ? {
-          _id: userDoc.current_tier._id.toString(),
-          name: userDoc.current_tier.name,
-          benefits: userDoc.current_tier.benefits || [],
-        }
-        : null,
-      status: userDoc.status,
-      total_spending: userDoc.total_spending || 0,
+      _id: userDoc?._id?.toString() ?? "",
+      name: userDoc?.name ?? "",
+      email: userDoc?.email ?? "",
+      phone: userDoc?.phone ?? "",
+      role: userDoc?.role ?? "user",
+      verified: userDoc?.verified ?? true,
+      status: userDoc?.status ?? "active",
+      total_spending: userDoc?.total_spending ?? 0,
     };
+
     // Lấy snapshot địa chỉ giao hàng
     let shippingAddressSnapshot = null;
     if (shipping_address) {
@@ -586,13 +580,13 @@ const getMyOrders = async (user, filters = {}) => {
         }
         return item;
       });
-
-      if (!order.user && order.user_snapshot) {
-        order.user = order.user_snapshot;
-      }
-
       return order;
     });
+
+    if (!orders.user && orders.user_snapshot) {
+      orders.user = orders.user_snapshot;
+    }
+
 
     return {
       orders: transformedOrders,
@@ -1049,7 +1043,7 @@ const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isRet
         order.payment_status === "completed"
       ) {
         html = getRefundRequestEmailTemplate({
-          fullName: order.user.fullName || "Khách hàng",
+          fullName: order.user.name || "Khách hàng",
           orderId: order._id,
         });
         subject = `💰 Hoàn tiền cho đơn hàng #${order._id}`;
@@ -1059,7 +1053,7 @@ const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isRet
 
       if (userRole === Roles.ADMIN && currentStatus !== "returning" && newStatus === "returning") {
         html = getReturnApprovedEmailTemplate({
-          fullName: order.user.fullName || "Khách hàng",
+          fullName: order.user.name || "Khách hàng",
           orderId: order._id,
           note,
           createdAt: order.createdAt,
@@ -1067,7 +1061,7 @@ const updateOrderStatus = async (orderId, newStatus, changedBy, note = "", isRet
         subject = "📦 Yêu cầu trả hàng đã được phê duyệt";
       } else {
         html = getOrderStatusChangedEmailTemplate({
-          fullName: order.user.fullName || "Khách hàng",
+          fullName: order.user.name || "Khách hàng",
           orderId: order._id,
           newStatus: getLabelNewStatus(newStatus),
           note,
@@ -1116,17 +1110,17 @@ export const clientRequestReturn = async (orderId, userId, note = "") => {
 
   // Gửi email admin
   const emailHtml = getReturnRequestEmailTemplate({
-    fullName: order.user.fullName || order.user.email,
+    fullName: order.user.name || order.user.email,
     orderId: order._id.toString(),
     note,
     createdAt: order.createdAt,
   });
 
-  await sendEmail(ADMIN_EMAIL, `Yêu cầu trả hàng từ khách hàng ${order.user.fullName || order.user.email}`, emailHtml);
+  await sendEmail(ADMIN_EMAIL, `Yêu cầu trả hàng từ khách hàng ${order.user.name || order.user.email}`, emailHtml);
 
   // Gửi email  khách hàng
   const userEmailHtml = getCancelConfirmationEmailTemplate({
-    fullName: order.user.fullName || order.user.email,
+    fullName: order.user.name || order.user.email,
     orderId: order._id.toString(),
     note,
   });
@@ -1245,7 +1239,7 @@ const confirmReturnService = async (id, imagePaths, changedBy) => {
   }));
 
   const emailHtml = getConfirmReturnEmailTemplate({
-    fullName: order.user?.fullName || 'Khách hàng',
+    fullName: order.user?.name || 'Khách hàng',
     orderId: order._id,
     confirmedAt: new Date(),
     note: 'Đơn hàng đã được xác nhận hoàn hàng.',

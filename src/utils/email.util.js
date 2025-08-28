@@ -163,9 +163,9 @@ export const getReturnRequestEmailTemplate = ({ fullName, orderId, note, created
 export const getCancelConfirmationEmailTemplate = ({ fullName, orderId, note }) => {
   return `
     <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f6f6f6;">
-      <h2 style="color: #d9534f;">❌ Yêu cầu huỷ đơn hàng đã được ghi nhận</h2>
+      <h2 style="color: #d9534f;"> Yêu cầu hoàn hàng đã được ghi nhận</h2>
       <p>Xin chào <strong>${fullName}</strong>,</p>
-      <p>Chúng tôi đã nhận được yêu cầu huỷ đơn hàng <strong>#${orderId}</strong> của bạn.</p>
+      <p>Chúng tôi đã nhận được yêu cầu hoàn hàng <strong>#${orderId}</strong> của bạn.</p>
       <p><strong>Ghi chú:</strong> ${note || "Không có ghi chú"}</p>
       <p>Bộ phận chăm sóc khách hàng sẽ liên hệ bạn sớm nếu cần thêm thông tin.</p>
       <hr />

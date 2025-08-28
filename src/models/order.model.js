@@ -94,11 +94,6 @@ const orderItemSchema = new mongoose.Schema(
         type: String,
         enum: ["user", "admin"],
       },
-      current_tier: {
-        _id: String,
-        name: String,
-        benefits: [String],
-      },
       status: {
         type: String,
         enum: ["active", "blocked", "banned"],
