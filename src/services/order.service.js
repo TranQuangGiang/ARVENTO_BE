@@ -932,6 +932,10 @@ export const getAllOrders = async (filters = {}, options = {}) => {
 
   const total = await Order.countDocuments(query);
 
+  if (!orders.user && orders.user_snapshot) {
+    orders.user = orders.user_snapshot;
+  }
+
   return {
     orders,
     total,
