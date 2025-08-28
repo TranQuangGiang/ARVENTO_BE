@@ -151,16 +151,14 @@ const createOrder = async (orderData) => {
     if (!userDoc) {
       throw new Error("Không tìm thấy user");
     }
-
     const userSnapshot = {
-      _id: userDoc?._id?.toString() ?? "",
-      name: userDoc?.name ?? "",
-      email: userDoc?.email ?? "",
-      phone: userDoc?.phone ?? "",
-      role: userDoc?.role ?? "user",
-      verified: userDoc?.verified ?? true,
-      status: userDoc?.status ?? "active",
-      total_spending: userDoc?.total_spending ?? 0,
+      _id: userDoc._id.toString(),
+      name: userDoc.name || "",
+      email: userDoc.email || "",
+      phone: userDoc.phone || "",
+      role: userDoc.role || "user",
+      status: userDoc.status || "active",
+      total_spending: userDoc.total_spending || 0,
     };
 
 

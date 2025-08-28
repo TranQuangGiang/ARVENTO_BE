@@ -1,6 +1,26 @@
 import mongoose from "mongoose";
 
 // Schema cho variant của sản phẩm trong đơn hàng (tương tự cart)
+
+const userSnapshotSchema = new mongoose.Schema(
+  {
+    _id: String,
+    name: String,
+    email: String,
+    phone: String,
+    verified: Boolean,
+    role: {
+      type: String,
+      enum: ["user", "admin"],
+    },
+    status: {
+      type: String,
+      enum: ["active", "blocked", "banned"],
+    },
+    total_spending: Number,
+  },
+  { _id: false }
+);
 const OrderVariantSchema = new mongoose.Schema(
   {
     color: {
@@ -145,20 +165,8 @@ const orderSchema = new mongoose.Schema(
       min: [0, "Tổng phụ không được âm"],
     },
     user_snapshot: {
-      _id: String,
-      name: String,
-      email: String,
-      phone: String,
-      verified: Boolean,
-      role: {
-        type: String,
-        enum: ["user", "admin"],
-      },
-      status: {
-        type: String,
-        enum: ["active", "blocked", "banned"],
-      },
-      total_spending: Number,
+      type: userSnapshotSchema,
+      required: false,
     },
     applied_coupon: {
       code: {
