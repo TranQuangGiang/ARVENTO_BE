@@ -37,7 +37,7 @@ const syncPendingPayments = async () => {
       try {
         const syncResult = await syncSinglePayment(payment);
         results[syncResult]++;
-        
+
         // Add delay between requests to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 100));
       } catch (error) {
@@ -60,7 +60,7 @@ const syncPendingPayments = async () => {
 const syncSinglePayment = async (payment) => {
   try {
     let queryResult;
-    
+
     switch (payment.method) {
       case "zalopay":
         if (!payment.appTransId) {
@@ -69,7 +69,7 @@ const syncSinglePayment = async (payment) => {
         }
         queryResult = await zaloPayUtil.queryOrder(payment.appTransId);
         return await handleZaloPaySyncResult(payment, queryResult);
-        
+
       case "momo":
         if (!payment.requestId) {
           logger.warn(`[PAYMENT_SYNC] MoMo payment ${payment._id} missing requestId`);
@@ -77,7 +77,7 @@ const syncSinglePayment = async (payment) => {
         }
         queryResult = await momoUtil.queryOrder(payment._id.toString(), payment.requestId);
         return await handleMoMoSyncResult(payment, queryResult);
-        
+
       default:
         logger.warn(`[PAYMENT_SYNC] Unsupported payment method: ${payment.method}`);
         return "failed";
@@ -97,7 +97,7 @@ const handleZaloPaySyncResult = async (payment, queryResult) => {
   }
 
   const { return_code, zp_trans_id, return_message } = queryResult.data;
-  
+
   if (return_code === 1) {
     // Payment successful
     await updatePaymentStatus(payment, {
@@ -114,10 +114,10 @@ const handleZaloPaySyncResult = async (payment, queryResult) => {
         }
       ]
     });
-    
+
     await updateOrderStatus(payment.order, "confirmed", "Thanh toán ZaloPay thành công (auto-sync)");
     return "success";
-    
+
   } else if (return_code === 2) {
     // Payment failed
     await updatePaymentStatus(payment, {
@@ -134,7 +134,7 @@ const handleZaloPaySyncResult = async (payment, queryResult) => {
     });
     return "success";
   }
-  
+
   return "unchanged";
 };
 
@@ -147,7 +147,7 @@ const handleMoMoSyncResult = async (payment, queryResult) => {
   }
 
   const { resultCode, transId, message } = queryResult.data;
-  
+
   if (resultCode === 0) {
     // Payment successful
     await updatePaymentStatus(payment, {
@@ -164,10 +164,10 @@ const handleMoMoSyncResult = async (payment, queryResult) => {
         }
       ]
     });
-    
+
     await updateOrderStatus(payment.order, "confirmed", "Thanh toán MoMo thành công (auto-sync)");
     return "success";
-    
+
   } else if (resultCode !== 9000) { // 9000 = pending
     // Payment failed
     await updatePaymentStatus(payment, {
@@ -184,7 +184,7 @@ const handleMoMoSyncResult = async (payment, queryResult) => {
     });
     return "success";
   }
-  
+
   return "unchanged";
 };
 
@@ -200,18 +200,37 @@ const updatePaymentStatus = async (payment, updateData) => {
  * Update order status
  */
 const updateOrderStatus = async (orderId, status, note) => {
-  await Order.findByIdAndUpdate(orderId, {
-    status,
-    $push: {
-      timeline: {
-        status,
-        changedAt: new Date(),
-        note
-      }
+  const order = await Order.findById(orderId);
+  if (!order) {
+    logger.warn(`[PAYMENT_SYNC] Order ${orderId} not found`);
+    return;
+  }
+
+  // Chỉ cập nhật order.status và timeline nếu đang pending
+  if (order.status === "pending") {
+    order.status = status;
+    order.timeline.push({
+      status,
+      changedAt: new Date(),
+      note
+    });
+  } else {
+    logger.info(`[PAYMENT_SYNC] Order ${orderId} status is "${order.status}", skipping order status update`);
+  }
+
+  // Luôn cập nhật payment_status nếu chưa cancelled hoặc completed
+  if (!["cancelled", "completed"].includes(order.payment_status)) {
+    if (status === "cancelled") {
+      order.payment_status = order.payment_method === "cod" ? "cancelled" : "refunded";
+    } else if (status === "confirmed") {
+      order.payment_status = "completed";
     }
-  });
-  logger.info(`[PAYMENT_SYNC] Updated order ${orderId} status to ${status}`);
+  }
+
+  await order.save();
+  logger.info(`[PAYMENT_SYNC] Updated order ${orderId}: status=${order.status}, payment_status=${order.payment_status}`);
 };
+
 
 /**
  * Handle expired payments (timeout)
@@ -229,7 +248,7 @@ const handleExpiredPayments = async () => {
           createdAt: { $lt: new Date(now - PAYMENT_TIMEOUTS.ZALOPAY) }
         },
         {
-          method: "momo", 
+          method: "momo",
           createdAt: { $lt: new Date(now - PAYMENT_TIMEOUTS.MOMO) }
         }
       ]
@@ -283,7 +302,7 @@ const reconcilePayments = async (dateFrom, dateTo) => {
         if (syncResult === "success") {
           results.synced++;
         }
-        
+
         // Add delay between requests
         await new Promise(resolve => setTimeout(resolve, 200));
       } catch (error) {
