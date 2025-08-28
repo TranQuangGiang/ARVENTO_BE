@@ -82,7 +82,6 @@ export const addItemSchema = Joi.object({
     "number.base": "Số lượng phải là số",
     "number.integer": "Số lượng phải là số nguyên",
     "number.min": "Số lượng tối thiểu là 1",
-    "number.max": "Số lượng tối đa là 10",
     "any.required": "Thiếu số lượng sản phẩm",
   }),
 });
