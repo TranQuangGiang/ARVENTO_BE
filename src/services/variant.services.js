@@ -88,7 +88,10 @@ const generateVariants = async (productId, input) => {
   // ==============================
   // 🚀 Sinh combinations (COLOR → SIZE)
   // ==============================
-  const sortedColors = validColorsRaw.filter(c => inputColors.includes(c.name.toLowerCase()));
+  const colorMap = new Map(validColorsRaw.map(c => [c.name.toLowerCase(), c]));
+const sortedColors = inputColors
+  .map(name => colorMap.get(name))  // đảm bảo theo thứ tự input
+  .filter(Boolean);
   const sortedSizes = [...new Set(inputSizes)].sort((a, b) => {
     const numA = parseInt(a, 10);
     const numB = parseInt(b, 10);
