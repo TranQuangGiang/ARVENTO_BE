@@ -764,16 +764,7 @@ const cancelOrder = async (orderId, userId, note) => {
       changedAt: new Date(),
     });
 
-    // Gửi email cho khách hàng
-    const customerEmailHtml = getOrderCancelledEmailTemplate({
-      fullName: order.user.name,
-      orderId: order._id,
-      createdAt: order.created_at,
-      items: order.items,
-      total: order.total,
-      note,
-    });
-    await sendEmail(order.user.email, `Đơn hàng #${order._id} đã bị hủy`, customerEmailHtml);
+    // Email cho khách hàng sẽ được gửi dựa trên phương thức thanh toán (ở phía dưới)
 
     const adminEmailHtml = `
       <div style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;">
@@ -796,29 +787,84 @@ const cancelOrder = async (orderId, userId, note) => {
 
     await sendEmail(ADMIN_EMAIL, `Đơn hàng #${order._id} bị hủy`, adminEmailHtml);
 
+    // Gửi email phù hợp theo trạng thái thanh toán
     if (["zalopay", "momo", "banking"].includes(order.payment_method)) {
-      const refundEmailHtml = `
-        <div style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;">
-          <div style="max-width: 600px; margin: 0 auto; background-color: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-            <div style="background-color: #28a745; color: #fff; padding: 20px; text-align: center;">
-              <h2 style="margin: 0;">💰 Hoàn tiền đơn hàng</h2>
-            </div>
-            <div style="padding: 24px; color: #333;">
-              <p>Đơn hàng <strong>#${order._id}</strong> của bạn đã bị hủy.</p>
-              <p>Phương thức thanh toán: <strong>${order.payment_method.toUpperCase()}</strong></p>
-              ${refundSuccess
-          ? `<p>Số tiền <strong>${order.total?.toLocaleString()}₫</strong> sẽ được hoàn về tài khoản của bạn trong thời gian sớm nhất.</p>`
-          : `<p>Hiện tại chưa thể hoàn tiền tự động. Vui lòng liên hệ bộ phận hỗ trợ để được hướng dẫn.</p>`
-        }
-              <p>Lý do hủy: ${note || "Không có ghi chú"}</p>
-            </div>
-            <div style="background-color: #f1f1f1; text-align: center; padding: 16px; font-size: 12px; color: #888;">
-              Email tự động - không trả lời
+      if (order.payment_status === "completed") {
+        // Email hoàn tiền cho đơn hàng đã thanh toán
+        const refundEmailHtml = `
+          <div style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;">
+            <div style="max-width: 600px; margin: 0 auto; background-color: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <div style="background-color: #28a745; color: #fff; padding: 20px; text-align: center;">
+                <h2 style="margin: 0;">💰 Hoàn tiền đơn hàng</h2>
+              </div>
+              <div style="padding: 24px; color: #333;">
+                <p>Đơn hàng <strong>#${order._id}</strong> của bạn đã bị hủy.</p>
+                <p>Phương thức thanh toán: <strong>${order.payment_method.toUpperCase()}</strong></p>
+                ${refundSuccess
+            ? `<p>✅ Số tiền <strong>${order.total?.toLocaleString()}₫</strong> sẽ được hoàn về tài khoản của bạn trong thời gian sớm nhất.</p>`
+            : `<p>⚠️ Hiện tại chưa thể hoàn tiền tự động. Vui lòng liên hệ bộ phận hỗ trợ để được hướng dẫn.</p>`
+          }
+                <p><strong>Lý do hủy:</strong> ${note || "Không có ghi chú"}</p>
+                <p style="margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-left: 4px solid #28a745; font-size: 14px;">
+                  <strong>Thông tin hoàn tiền:</strong><br/>
+                  • Thời gian xử lý: 1-3 ngày làm việc<br/>
+                  • Tiền sẽ được hoàn về tài khoản thanh toán gốc<br/>
+                  • Bạn sẽ nhận được thông báo khi hoàn tiền thành công
+                </p>
+              </div>
+              <div style="background-color: #f1f1f1; text-align: center; padding: 16px; font-size: 12px; color: #888;">
+                Email tự động - không trả lời
+              </div>
             </div>
           </div>
-        </div>
-      `;
-      await sendEmail(order.user.email, `Hoàn tiền cho đơn hàng #${order._id}`, refundEmailHtml);
+        `;
+        await sendEmail(order.user.email, `Hoàn tiền cho đơn hàng #${order._id}`, refundEmailHtml);
+      } else {
+        // Email hủy đơn hàng chưa thanh toán
+        const cancelOnlineOrderEmailHtml = `
+          <div style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;">
+            <div style="max-width: 600px; margin: 0 auto; background-color: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <div style="background-color: #6c757d; color: #fff; padding: 20px; text-align: center;">
+                <h2 style="margin: 0;">❌ Đơn hàng đã hủy</h2>
+              </div>
+              <div style="padding: 24px; color: #333;">
+                <p>Đơn hàng <strong>#${order._id}</strong> của bạn đã được hủy thành công.</p>
+                <p>Phương thức thanh toán: <strong>${order.payment_method.toUpperCase()}</strong></p>
+                <p><strong>Trạng thái thanh toán:</strong> Chưa thanh toán</p>
+                <p><strong>Lý do hủy:</strong> ${note || "Không có ghi chú"}</p>
+                
+                <div style="margin-top: 20px; padding: 15px; background-color: #e7f3ff; border-left: 4px solid #0066cc; font-size: 14px;">
+                  <strong>ℹ️ Thông tin quan trọng:</strong><br/>
+                  • Không có giao dịch thanh toán nào được thực hiện<br/>
+                  • Không cần hoàn tiền<br/>
+                  • Bạn có thể đặt hàng mới bất kỳ lúc nào
+                </div>
+                
+                <div style="margin-top: 20px; text-align: center;">
+                  <p style="margin: 0; font-size: 14px; color: #666;">
+                    Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi!
+                  </p>
+                </div>
+              </div>
+              <div style="background-color: #f1f1f1; text-align: center; padding: 16px; font-size: 12px; color: #888;">
+                Email tự động - không trả lời
+              </div>
+            </div>
+          </div>
+        `;
+        await sendEmail(order.user.email, `Đơn hàng #${order._id} đã được hủy`, cancelOnlineOrderEmailHtml);
+      }
+    } else {
+      // Email cho COD và các phương thức khác
+      const customerEmailHtml = getOrderCancelledEmailTemplate({
+        fullName: order.user.name,
+        orderId: order._id,
+        createdAt: order.created_at,
+        items: order.items,
+        total: order.total,
+        note,
+      });
+      await sendEmail(order.user.email, `Đơn hàng #${order._id} đã bị hủy`, customerEmailHtml);
     }
     // Restore stock for all items
     const stockUpdates = [];
